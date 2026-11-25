@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings — Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Настройки: маршруты грузовика и нормы времени. Палитра и шапка — в theme.css ---------- */
+    .wrap { max-width: 980px; margin: 0 auto; padding: 22px 24px 60px; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .lead { color: var(--ink-2); margin-bottom: 20px; max-width: 70ch; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); padding: 20px 22px; margin-bottom: 16px; }
+    .card h2 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .card .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; max-width: 72ch; }
+    .prov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 760px) { .prov { grid-template-columns: 1fr; } }
+    .prov label { display: block; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+    .prov label:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); }
+    .prov input { margin-right: 8px; accent-color: var(--blue); }
+    .prov b { font-size: 15px; }
+    .prov p { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .f { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+    .f input { height: 40px; border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 0 12px; font-size: 15px; color: var(--ink); background: #fff; font-weight: 400; }
+    .f input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .f.wide { grid-column: span 2; }
+    .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); align-self: end; height: 40px; }
+    .chk input { width: 18px; height: 18px; accent-color: var(--blue); }
+    .keyrow { display: flex; gap: 8px; align-items: end; margin: 14px 0 4px; flex-wrap: wrap; }
+    .keyrow .f { flex: 1; min-width: 240px; }
+    .keyrow .f input { font-family: var(--font-code); }
+    .hint { font-size: 13px; color: var(--ink-3); }
+    .hint a { color: var(--blue); }
+    .acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+    .result { margin-top: 14px; border-radius: 10px; padding: 12px 14px; font-size: 14px; display: none; }
+    .result.ok { display: block; background: #E7F6EC; color: #10512B; }
+    .result.bad { display: block; background: var(--signal-soft); color: #8A3207; }
+    .result.wait { display: block; background: var(--harbour); color: var(--ink-2); }
+    .result table { margin-top: 6px; border-collapse: collapse; }
+    .result td { padding: 2px 16px 2px 0; font-variant-numeric: tabular-nums; }
+    .norms .f input { width: 100%; }
+    .note { font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top__in">
+    <a class="brand" href="orders.html" aria-label="Hyperion TMS — orders"><img class="brand__mark" src="assets/brand/hyperion-mark.png" alt=""><img class="brand__word" src="assets/brand/hyperion-wordmark.png" alt="Hyperion"></a>
+    <nav class="appnav"><a href="orders.html">Orders</a><a href="order-new.html">New order</a><a href="dispatch.html">Dispatch</a><a href="driver.html">Driver app</a><a href="ports.html">Terminals &amp; ports</a><a href="settings.html" class="is-on">Settings</a></nav>
+  </div></header>
+
+  <main class="wrap">
+    <h1>Settings</h1>
+    <p class="lead">Truck routes and time norms used by Dispatch, the driver app and order distances.</p>
+
+    <section class="card">
+      <h2>Truck routing</h2>
+      <p class="sub">Distances and driving times come from a routing service that follows the real road network with your truck's size and weight, so it avoids low bridges and roads closed to trucks. Each route is asked once and saved.</p>
+      <div class="prov" id="prov">
+        <label><input type="radio" name="prov" value="none"><b>Approximate</b><p>Built-in motorway schema. No key, works offline. ±5–15 %, only BE, NL, DE, FR, LU, PL.</p></label>
+        <label><input type="radio" name="prov" value="ors"><b>openrouteservice</b><p>Free key. Truck profile with height, weight and ADR restrictions. No toll costs.</p></label>
+        <label><input type="radio" name="prov" value="here"><b>HERE</b><p>Paid plan. Truck routing with restrictions and toll costs in EUR.</p></label>
+      </div>
+      <div class="keyrow">
+        <label class="f">API key<input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the key from your account"></label>
+        <button type="button" class="btn" id="showkey">Show</button>
+      </div>
+      <p class="hint" id="keyhint"></p>
+
+      <h2 style="margin-top:20px">Truck profile</h2>
+      <p class="sub">Typical container combination: tractor with 40 ft chassis. Change it if your fleet differs.</p>
+      <div class="grid">
+        <label class="f">Gross weight, t<input id="t-weight" type="number" step="0.5" min="3" max="60"></label>
+        <label class="f">Height, m<input id="t-height" type="number" step="0.05" min="2" max="5"></label>
+        <label class="f">Width, m<input id="t-width" type="number" step="0.05" min="2" max="3"></label>
+        <label class="f">Length, m<input id="t-length" type="number" step="0.1" min="5" max="25"></label>
+        <label class="f">Axle load, t<input id="t-axleload" type="number" step="0.5" min="1" max="15"></label>
+        <label class="f">Axles<input id="t-axles" type="number" step="1" min="2" max="9"></label>
+        <label class="chk"><input id="t-adr" type="checkbox">ADR (dangerous goods)</label>
+      </div>
+
+      <div class="acts">
+        <button type="button" class="btn btn--brand" id="save">Save</button>
+        <button type="button" class="btn" id="test">Test: MPET 1742 Antwerp → ECT Delta Rotterdam</button>
+        <span class="hint" id="cache"></span>
+        <button type="button" class="btn btn--ghost" id="clear">Clear saved routes</button>
+      </div>
+      <div class="result" id="result" role="status"></div>
+      <p class="note">The key is kept in this browser only. Inside the claude.ai preview, requests to other sites are blocked, so routing works in the downloaded Hyperion files opened in Chrome or Edge, or when Hyperion runs on your own site. With Supabase the key moves to the server.</p>
+    </section>
+
+    <section class="card norms">
+      <h2>Time norms</h2>
+      <p class="sub">How long each part of a job takes on the Dispatch board. Driving time = distance ÷ average speed; the distance comes from the routing service when one is set up.</p>
+      <div class="grid">
+        <label class="f">Pick-up at terminal or depot, h<input id="n-PICKUP_H" type="number" step="0.25" min="0" max="8"></label>
+        <label class="f">Loading or unloading, h<input id="n-STOP_H" type="number" step="0.25" min="0" max="12"></label>
+        <label class="f">Drop-off at terminal or depot, h<input id="n-DROP_H" type="number" step="0.25" min="0" max="8"></label>
+        <label class="f">Average speed, km/h<input id="n-SPEED" type="number" step="1" min="30" max="90"></label>
+        <label class="f">Plan driving per shift up to, h<input id="n-PLAN_DRIVE" type="number" step="0.25" min="4" max="10"></label>
+        <label class="f">Plan shift up to, h<input id="n-PLAN_SHIFT" type="number" step="0.25" min="6" max="15"></label>
+        <label class="f">Daily rest, h<input id="n-REST_H" type="number" step="0.25" min="9" max="24"></label>
+        <label class="chk" style="grid-column:1/-1"><input id="n-REST" type="checkbox">Drivers rest in the cab while the container is loaded or unloaded (the time counts as a break)</label>
+      </div>
+      <p class="note">Driving and rest rules (EU Regulation 561/2006) checked on the Dispatch board, per driver:</p>
+      <ul class="note" style="margin:6px 0 0 18px;line-height:1.6">
+        <li>at most 4.5 h of driving in a row, then a 45 min break (added to the job automatically);</li>
+        <li>driving in one shift: 9 h, up to 10 h no more than twice a week;</li>
+        <li>shift (from the first pick-up to the last drop-off, breaks included): 13 h, up to 15 h no more than three times a week;</li>
+        <li>rest between shifts at least 9 h; at most 56 h of driving a week.</li>
+        <li>when planning a long job: once the shift reaches the planned driving or shift limit, a daily rest is added and driving goes on in a new shift.</li>
+      </ul>
+      <p class="note">When drivers rest during loading or unloading, that time resets the 4.5 h count. The week runs Monday to Sunday. Hyperion only knows the jobs planned in it, not the tachograph, so hours driven elsewhere are not counted.</p>
+      <div class="acts"><button type="button" class="btn btn--brand" id="save-n">Save norms</button><button type="button" class="btn btn--ghost" id="reset-n">Back to 1.5 / 3 / 1.5 h, 70 km/h</button></div>
+    </section>
+  </main>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="assets/ports.js"></script>
+  <script src="assets/terminals.js"></script>
+  <script src="assets/ref.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/routing.js"></script>
+  <script src="assets/geo.js"></script>
+  <script src="assets/timing.js"></script>
+  <script>
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var G = JTMS.geo, TF = ['weight', 'height', 'width', 'length', 'axleload', 'axles'], NF = ['PICKUP_H', 'STOP_H', 'DROP_H', 'SPEED', 'PLAN_DRIVE', 'PLAN_SHIFT', 'REST_H'];
+    var DEFN = { PICKUP_H: 1.5, STOP_H: 3, DROP_H: 1.5, SPEED: 70, PLAN_DRIVE: 10, PLAN_SHIFT: 15, REST_H: 9, REST_AT_STOP: true };
+    var HINT = {
+      none: 'No key needed.',
+      ors: 'Sign up at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener">openrouteservice.org</a>, create a token in the dashboard and paste it here.',
+      here: 'Create a project at <a href="https://platform.here.com/" target="_blank" rel="noopener">platform.here.com</a>, add an API key with Routing and Geocoding, and paste it here.'
+    };
+    function toast(m) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = m; $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, 2800); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+    function fill() {
+      var s = G.settings();
+      document.querySelector('input[name=prov][value="' + s.provider + '"]').checked = true;
+      $('key').value = s.key || '';
+      TF.forEach(function (k) { $('t-' + k).value = s.truck[k]; });
+      $('t-adr').checked = !!s.truck.adr;
+      NF.forEach(function (k) { $('n-' + k).value = JTMS.timing.C[k]; });
+      $('n-REST').checked = JTMS.timing.C.REST_AT_STOP !== false;
+      hint(); cache();
+    }
+    function prov() { return document.querySelector('input[name=prov]:checked').value; }
+    function hint() { $('keyhint').innerHTML = HINT[prov()]; $('key').disabled = prov() === 'none'; }
+    function cache() { var st = G.status(); $('cache').textContent = st.cached + ' routes saved'; }
+    function collect() {
+      var t = {}; TF.forEach(function (k) { t[k] = +$('t-' + k).value; }); t.adr = $('t-adr').checked;
+      return { provider: prov(), key: $('key').value.trim(), truck: t };
+    }
+    function show(cls, html) { var r = $('result'); r.className = 'result ' + cls; r.innerHTML = html; }
+
+    $('prov').addEventListener('change', hint);
+    $('showkey').addEventListener('click', function () { var k = $('key'); k.type = k.type === 'password' ? 'text' : 'password'; this.textContent = k.type === 'password' ? 'Show' : 'Hide'; });
+    $('save').addEventListener('click', function () {
+      var n = collect();
+      if (n.provider !== 'none' && !n.key) { show('bad', 'Paste the API key first, or choose Approximate.'); $('key').focus(); return; }
+      G.save(n); toast('Saved. Dispatch will load truck routes as you open it.'); show('', ''); cache();
+    });
+    $('test').addEventListener('click', function () {
+      var n = collect();
+      if (n.provider === 'none' || !n.key) { show('bad', 'Choose openrouteservice or HERE and paste a key to test.'); return; }
+      G.save(n);
+      var a = JTMS.ref.location('BEANR-K1742'), b = JTMS.ref.location('NLRTM-DCD');
+      var approx = JTMS.route.forLeg({ from: a, to: b });
+      show('wait', 'Asking ' + esc(G.NAMES[n.provider]) + '…');
+      G.test({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }).then(function (r) {
+        show('ok', '<b>Connection works.</b><table><tr><td>Truck route</td><td>' + r.km.toFixed(1) + ' km</td><td>' + Math.floor(r.h) + ' h ' + String(Math.round(r.h % 1 * 60)).padStart(2, '0') + ' min</td>' +
+          (r.toll != null ? '<td>tolls €' + r.toll.toFixed(2) + '</td>' : '') + '</tr>' +
+          (approx ? '<tr><td>Built-in schema</td><td>' + Math.round(approx.km) + ' km</td><td></td></tr>' : '') + '</table>');
+      }, function (e) { show('bad', '<b>No answer.</b> ' + esc(e.message)); });
+    });
+    $('clear').addEventListener('click', function () { G.clear(); cache(); toast('Saved routes cleared'); });
+    $('save-n').addEventListener('click', function () {
+      var v = {}; NF.forEach(function (k) { var x = parseFloat($('n-' + k).value); if (isFinite(x)) v[k] = x; });
+      v.REST_AT_STOP = $('n-REST').checked;
+      try { localStorage.setItem('jtms.timing.norms', JSON.stringify(v)); Object.assign(JTMS.timing.C, v); JTMS.timing.rechain(); toast('Norms saved. Planned jobs keep their start time and get the new length.'); } catch (e) { toast('Could not save in this browser'); }
+    });
+    $('reset-n').addEventListener('click', function () {
+      try { localStorage.removeItem('jtms.timing.norms'); } catch (e) {}
+      NF.forEach(function (k) { $('n-' + k).value = DEFN[k]; }); $('n-REST').checked = true; Object.assign(JTMS.timing.C, DEFN); JTMS.timing.rechain(); toast('Back to the standard norms');
+    });
+    G.onChange(cache);
+    fill();
+  })();
+  </script>
+</body>
+</html>

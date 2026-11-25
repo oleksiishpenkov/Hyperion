@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dispatch — Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Страница «Диспетчер»: машины × часы дня. Палитра и шапка — в theme.css ---------- */
+    :root { --label-w: 224px; --row-h: 44px; --side: 380px; }
+    .wrap { max-width: 1760px; margin: 0 auto; padding: 18px 24px 40px; }
+    .head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+    .head h1 { font-size: 22px; font-weight: 700; margin-right: 6px; }
+    .daynav { display: flex; align-items: center; gap: 6px; }
+    .daynav button { height: 34px; min-width: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: #fff; color: var(--ink); font-weight: 600; font-size: 14px; }
+    .daynav button:hover { border-color: var(--blue); color: var(--blue); }
+    .daynav .date { font-size: 16px; font-weight: 600; margin-left: 6px; min-width: 210px; }
+    .zoom { display: flex; border: 1px solid var(--line); border-radius: var(--radius-ctl); overflow: hidden; }
+    .zoom button { height: 32px; padding: 0 10px; border: 0; background: #fff; font-weight: 600; font-size: 13px; color: var(--ink-2); }
+    .zoom button + button { border-left: 1px solid var(--line); }
+    .zoom button.is-on { background: var(--navy); color: #fff; }
+    .stats { display: flex; gap: 22px; margin-left: auto; flex-wrap: wrap; }
+    .stat { display: flex; flex-direction: column; }
+    .stat b { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+    .stat span { font-size: 12.5px; color: var(--ink-2); }
+    .stat--warn b { color: var(--signal); }
+    button.stat { border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) var(--side); gap: 16px; align-items: start; }
+    @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    .panel { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); }
+
+    /* ---- доска ---- */
+    .board-scroll { overflow: auto; max-height: calc(100vh - 200px); border-radius: var(--radius-card) var(--radius-card) 0 0; overscroll-behavior-x: contain; }
+    .board { position: relative; width: calc(var(--label-w) + var(--tw)); }
+    .bhead { display: flex; height: 38px; border-bottom: 1px solid var(--line); background: #F8FAFD; border-radius: var(--radius-card) var(--radius-card) 0 0; position: sticky; top: 0; z-index: 4; }
+    .bcorner { position: sticky; left: 0; z-index: 5; background: #F8FAFD; width: var(--label-w); flex-shrink: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; color: var(--ink-2); border-right: 1px solid var(--line); }
+    .hours { position: relative; width: var(--tw); flex-shrink: 0; }
+    .hours .dl { transform: translate(6px, -50%); color: var(--ink); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+    .hours .dl.is-today { color: var(--blue); }
+    .daylines { position: absolute; top: 0; bottom: 0; left: var(--label-w); width: var(--tw); pointer-events: none; z-index: 1; }
+    .daylines i { position: absolute; top: 0; bottom: 0; width: 2px; background: #C9D3E3; }
+    .hours span { position: absolute; top: 50%; transform: translate(-50%, -50%); font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .row { display: flex; border-bottom: 1px solid #EEF1F6; min-height: var(--row-h); }
+    .row:last-child { border-bottom: 0; }
+    .row.is-free .label .fleet, .row.is-free .label .drv { color: var(--ink-3); }   /* не opacity: подпись должна закрывать блоки под собой */
+    .label { position: sticky; left: 0; z-index: 4; background: #fff; width: var(--label-w); flex-shrink: 0; padding: 3px 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+    .label .fl, .label .l2 { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; min-width: 0; }
+    .label .fleet { font-family: var(--font-code); font-weight: 600; font-size: 13px; }
+    .label .plate { font-family: var(--font-code); font-size: 11.5px; color: var(--ink-3); }
+    .label .sh { margin-left: auto; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .label .sh.is-over { color: var(--signal); font-weight: 700; }
+    .label .drv { min-width: 0; font-size: 12.5px; line-height: 1.25; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .label .tot { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .track { position: relative; width: var(--tw); flex-shrink: 0; background-image: repeating-linear-gradient(to right, #EEF1F6 0 1px, transparent 1px var(--px)); }
+    .track.is-drop { background-color: var(--blue-soft); }
+    .drop-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--blue); pointer-events: none; z-index: 5; }
+    .drop-mark::after { content: attr(data-t); position: absolute; top: 2px; left: 5px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+
+    /* работа на доске: строка текста + полоса отрезков времени */
+    .track { overflow: hidden; }
+    .jb { position: absolute; top: 3px; bottom: 3px; display: flex; flex-direction: column; gap: 2px; padding: 2px 0 3px; border-radius: 6px; border: 1px solid #C5D4F3; background: #fff; cursor: grab; text-align: left; font: inherit; color: var(--ink); overflow: hidden; }
+    .jb:hover { box-shadow: var(--shadow-pop); z-index: 3; }
+    .jb.is-sel { outline: 2px solid var(--blue); outline-offset: 1px; z-index: 3; }
+    .jb.is-warn { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
+    .jb.is-live { border-color: var(--navy); }
+    .jb.is-done { background: #F6F8FB; border-color: var(--line); color: var(--ink-3); }
+    .jb .jt { padding: 0 6px; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 15px; }
+    .jb .jt b { font-size: 11.5px !important; }
+    .slot { display: inline-block; margin-left: 3px; padding: 0 5px; border-radius: 4px; background: var(--ink); color: #fff !important; font-weight: 800; font-size: 11px; line-height: 14px; font-variant-numeric: tabular-nums; }
+    .slot.is-late { background: var(--signal); }
+    .jb.is-done .slot { background: #A9B4C6; }
+    .jb .jt b { font-weight: 600; font-size: 13px; }
+    .jb .jt span { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .jb.is-done .jt span { color: var(--ink-3); }
+    .jb .ld { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 0 3px; border-radius: 3px; margin-right: 4px; vertical-align: 1px; line-height: 13px; background: #fff; color: var(--ink-2); border: 1px solid var(--line); }
+    .jb .ld--full { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .segs { position: relative; flex: 1; margin: 0 3px; min-height: 14px; }
+    .sg { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 10px; font-weight: 600; white-space: nowrap; border-radius: 3px; border: 1px solid #fff; border-width: 0 1px; }
+    .sg i { font-style: normal; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+    .sg--drive { background: var(--blue); color: #fff; }
+    .sg--site { background: repeating-linear-gradient(135deg, #D6E3FD 0 5px, #E8EFFE 5px 10px); color: var(--navy); }
+    .sg--work { background: repeating-linear-gradient(135deg, #FFE2CF 0 5px, #FFF0E6 5px 10px); color: #8A3207; }
+    .sg.st-driving.sg--drive { background: var(--navy); }
+    .snd { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 0 5px; height: 14px; border-radius: 7px; margin-right: 5px; vertical-align: 1px; }
+    .snd--none { background: #fff; color: var(--ink-2); border: 1px dashed #A9B4C6; }
+    .snd--sent { background: var(--blue-soft); color: var(--blue); }
+    .snd--ack { background: #E7F6EC; color: var(--pos); }
+    .snd--changed { background: var(--signal-soft); color: #8A3207; }
+    .drvbox { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-bottom: 12px; }
+    .drvbox .dh { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 8px; flex-wrap: wrap; }
+    .drvbox .dh b { font-size: 14px; }
+    .drvbox textarea { width: 100%; min-height: 54px; border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 8px 10px; font: inherit; font-size: 13.5px; resize: vertical; }
+    .drvbox textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .drvbox .acts { margin-top: 8px; }
+    .sg--rest { background: repeating-linear-gradient(135deg, #27325A 0 6px, #303C68 6px 12px); color: #DCE3F5; }
+    .sw--rest { background: #27325A; }
+    .sg--brk { background: #fff; color: var(--ink-2); border: 1px dashed #A9B4C6 !important; }
+    .rstat { font-size: 13px; color: var(--ink-2); margin: -4px 0 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .rstat a { color: var(--blue); font-weight: 600; }
+    .rstat .dotx { width: 8px; height: 8px; border-radius: 50%; background: var(--pos); }
+    .rstat .dotx.is-approx { background: #E0A100; } .rstat .dotx.is-err { background: var(--signal); }
+    .rstat .err { color: var(--signal); }
+    .src { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: #E7F6EC; color: var(--pos); margin-left: 4px; }
+    .src.is-approx { background: #FFF4D6; color: #7A5A00; }
+    .sg.st-done { background: #DCE2EB; color: var(--ink-3); }
+    .sg.st-done.sg--drive { background: #B6C0CF; color: #fff; }
+    .now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--signal); z-index: 3; pointer-events: none; }
+    .now::before { display: none; }
+    .nowtag { position: absolute; top: 50%; transform: translate(-50%, -50%); background: var(--signal); color: #fff !important; font-size: 11.5px !important; font-weight: 600; padding: 1px 6px; border-radius: 4px; z-index: 2; }
+    .now-old::before { content: attr(data-t); position: absolute; top: 9px; left: 50%; transform: translateX(-50%); background: var(--signal); color: #fff; font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+    .board-empty { padding: 14px 18px; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); color: var(--ink-2); font-size: 14px; }
+    .legend { display: flex; gap: 16px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); flex-wrap: wrap; }
+    .legend i { display: inline-block; width: 18px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+    /* ---- правая колонка ---- */
+    .side { display: flex; flex-direction: column; gap: 14px; }
+    .ptitle { display: flex; align-items: center; gap: 8px; padding: 12px 16px 10px; font-weight: 700; font-size: 15px; }
+    .ptitle .n { font-weight: 600; color: var(--ink-3); font-size: 13px; }
+    .ptitle .x { margin-left: auto; border: 0; background: none; color: var(--ink-3); font-size: 20px; line-height: 1; padding: 0 2px; }
+    .ptitle .x:hover { color: var(--ink); }
+    .chips { display: flex; gap: 6px; padding: 0 16px 10px; }
+    .chip { height: 28px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); font-weight: 600; font-size: 13px; }
+    .chip.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .list { max-height: 46vh; overflow-y: auto; border-top: 1px solid #EEF1F6; }
+    .list.is-drop { background: var(--blue-soft); }
+    .job { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #EEF1F6; background: #fff; padding: 10px 16px; cursor: grab; font: inherit; color: var(--ink); }
+    .job:hover { background: #F7F9FD; }
+    .job.is-sel { background: var(--blue-soft); box-shadow: inset 3px 0 0 var(--blue); }
+    .job .j1 { display: flex; gap: 8px; align-items: baseline; }
+    .job .cust { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .job .due { margin-left: auto; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .job .due.is-hot { color: var(--signal); font-weight: 600; }
+    .job .j2 { font-size: 13px; color: var(--ink-2); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .job .code { font-family: var(--font-code); font-size: 12.5px; color: var(--ink); }
+    .empty { padding: 16px; color: var(--ink-2); font-size: 14px; }
+    .alert { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid #EEF1F6; background: #fff; padding: 9px 16px; font: inherit; font-size: 13.5px; color: var(--ink); }
+    .alert:hover { background: #FFF7F1; }
+    .alert b { color: var(--signal); font-weight: 600; }
+    .alert span { color: var(--ink-2); }
+
+    /* выбранное плечо */
+    .det { padding: 0 16px 16px; }
+    .det .route { display: grid; grid-template-columns: 14px 1fr; gap: 2px 10px; margin-bottom: 10px; }
+    .det .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--blue); margin-top: 5px; }
+    .det .dot--to { background: var(--blue); }
+    .det .vline { width: 2px; background: var(--line); margin: 0 auto; min-height: 10px; }
+    .det .pl b { display: block; font-size: 14px; }
+    .det .pl span { font-size: 12.5px; color: var(--ink-2); }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13.5px; margin: 8px 0 12px; }
+    .kv dt { color: var(--ink-2); }
+    .kv dd { font-variant-numeric: tabular-nums; }
+    .mapbox { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-bottom: 8px; }
+    .mapbox svg { display: block; width: 100%; height: auto; }
+    .route-map__land { fill: #F3F6FA; } .route-map__sea { fill: #DCE9F7; } .route-map__isle { fill: #F3F6FA; }
+    .route-map__border { fill: none; stroke: #B7C2D3; stroke-width: .6; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+    .route-map__line { fill: none; stroke: var(--blue); stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: none !important; }
+    .route-map__done { fill: none; stroke: var(--navy); stroke-linecap: round; }
+    .route-map__node { fill: #fff; stroke: var(--blue); } .route-map__border-node { fill: #fff; stroke: #8E9AB0; }
+    .route-map__label { fill: var(--ink); stroke: #fff; paint-order: stroke; font-family: var(--font-ui); font-weight: 600; }
+    .route-map__truck { fill: var(--signal); stroke: #fff; }
+    .roads { font-size: 12.5px; color: var(--ink-2); margin-bottom: 12px; }
+    .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
+    .form label.wide { grid-column: 1 / -1; }
+    .form select, .form input { height: 36px; border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 0 10px; font-size: 14px; background: #fff; color: var(--ink); }
+    .form select:focus, .form input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .acts .btn { height: 36px; }
+    .seg2 { display: flex; border: 1px solid var(--line); border-radius: var(--radius-ctl); overflow: hidden; margin-bottom: 10px; }
+    .seg2 button { flex: 1; height: 34px; border: 0; background: #fff; font-weight: 600; font-size: 13.5px; color: var(--ink-2); }
+    .seg2 button + button { border-left: 1px solid var(--line); }
+    .seg2 button.is-on { background: var(--navy); color: #fff; }
+    .warnbox { background: var(--signal-soft); color: #8A3207; border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
+    .evlog { border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
+    .evlog .evh { font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+    .evlog div:not(.evh):not(.evph) { display: flex; gap: 10px; padding: 3px 0; }
+    .evlog b { font-variant-numeric: tabular-nums; min-width: 40px; }
+    .evph { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .evf { position: relative; display: inline-block; }
+    .evf i { position: absolute; left: 3px; top: 3px; font-style: normal; font-size: 9.5px; font-weight: 800; background: var(--navy); color: #fff; padding: 0 4px; border-radius: 3px; }
+    .evph img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+    .sched { border: 1px solid var(--line); border-radius: 9px; margin-bottom: 12px; }
+    .lg { padding: 8px 12px; } .lg + .lg { border-top: 1px solid #EEF1F6; }
+    .lgh { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); margin-bottom: 4px; flex-wrap: wrap; }
+    .lgh b { color: var(--ink); } .lgh em { color: var(--signal); font-style: normal; font-weight: 600; }
+    .mini { margin-left: auto; display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+    .mini button { border: 0; background: #fff; font-size: 11.5px; font-weight: 600; color: var(--ink-2); padding: 3px 7px; }
+    .mini button + button { border-left: 1px solid var(--line); }
+    .mini button.is-on { background: var(--navy); color: #fff; }
+    .sr { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 2px 0; }
+    .sr .tm { font-variant-numeric: tabular-nums; min-width: 86px; color: var(--ink); }
+    .sw { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .sw--drive { background: var(--blue); } .sw--brk { background: #fff; border: 1px dashed #A9B4C6; } .sw--site { background: repeating-linear-gradient(135deg, #C3D5FB 0 3px, #E8EFFE 3px 6px); } .sw--work { background: repeating-linear-gradient(135deg, #FFCFB0 0 3px, #FFF0E6 3px 6px); }
+    .hint2 { font-size: 12.5px; color: var(--ink-3); padding: 0 16px 12px; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top__in">
+    <a class="brand" href="orders.html" aria-label="Hyperion TMS — orders"><img class="brand__mark" src="assets/brand/hyperion-mark.png" alt=""><img class="brand__word" src="assets/brand/hyperion-wordmark.png" alt="Hyperion"></a>
+    <nav class="appnav"><a href="orders.html">Orders</a><a href="order-new.html">New order</a><a href="dispatch.html" class="is-on">Dispatch</a><a href="driver.html">Driver app</a><a href="ports.html">Terminals &amp; ports</a><a href="settings.html">Settings</a></nav>
+  </div></header>
+
+  <main class="wrap">
+    <div class="head">
+      <h1>Dispatch</h1>
+      <div class="daynav">
+        <button type="button" id="prev" aria-label="Previous day">‹</button>
+        <button type="button" id="today">Today</button>
+        <button type="button" id="next" aria-label="Next day">›</button>
+        <span class="date" id="date"></span>
+      </div>
+      <div class="zoom" id="zoom" role="group" aria-label="How much time fits on the screen"></div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="rstat" id="rstat"></div>
+    <div class="layout">
+      <section class="panel">
+        <div class="board-scroll"><div class="board" id="board"></div></div>
+        <div id="board-foot"></div>
+        <div class="legend">
+          <span><i style="background:repeating-linear-gradient(135deg,#D6E3FD 0 4px,#E8EFFE 4px 8px)"></i>Pick-up / drop-off 1.5 h</span>
+          <span><i style="background:var(--blue)"></i>Drive</span>
+          <span><i style="background:repeating-linear-gradient(135deg,#FFE2CF 0 4px,#FFF0E6 4px 8px)"></i>Loading / unloading 3 h, driver rests (counts as break)</span>
+          <span><i style="background:var(--navy)"></i>Driving now</span>
+          <span><i style="background:#fff;border:1px dashed #A9B4C6"></i>Break 45 min (EU 4.5 h rule)</span>
+          <span><i style="background:#27325A"></i>Daily rest 9 h (after 10 h driving or a 15 h shift)</span>
+          <span><i style="background:#DCE2EB"></i>Done</span>
+          <span><i style="box-shadow:inset 0 0 0 2px var(--signal)"></i>Needs attention</span>
+          <span><span class="snd snd--none">Not sent</span><span class="snd snd--sent">✓ Sent</span><span class="snd snd--ack">✓✓ Accepted</span>driver's phone</span>
+          <span style="margin-left:auto">Drag a job onto a truck to plan it. Drag it back to Unplanned to take it off.</span>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel" id="detail" hidden></section>
+        <section class="panel" id="attn-panel">
+          <div class="ptitle">Needs attention <span class="n" id="attn-n"></span></div>
+          <div id="attn"></div>
+        </section>
+        <section class="panel">
+          <div class="ptitle">Unplanned <span class="n" id="un-n"></span></div>
+          <div class="chips" id="un-chips">
+            <button type="button" class="chip is-on" data-f="day">This day</button>
+            <button type="button" class="chip" data-f="all">All open</button>
+          </div>
+          <div class="list" id="unplanned"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="assets/ports.js"></script>
+  <script src="assets/terminals.js"></script>
+  <script src="assets/ref.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/samples.js"></script>
+  <script src="assets/routing.js"></script>
+  <script src="assets/geo.js"></script>
+  <script src="assets/timing.js"></script>
+  <script src="assets/link.js"></script>
+  <script>
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var ref = JTMS.ref, store = JTMS.store, iso = JTMS.iso6346, TM = JTMS.timing, C = TM.C;
+    // Шкала — несколько суток подряд, прокручивается по горизонтали. Начало: сутки до выбранного дня.
+    var DAYS = 4, HOURS = DAYS * 24, PX = 26;           // PX — ширина часа: подбирается под масштаб (сколько часов видно на экране)
+    var SPANS = [[24, 'Day'], [36, '1.5 days'], [72, '3 days'], [168, 'Week']];
+    function fitPX() {
+      var sc = document.querySelector('.board-scroll'), avail = Math.max(300, (sc ? sc.clientWidth : 1000) - 224);
+      PX = Math.max(5, Math.min(80, avail / state.span));
+      DAYS = Math.max(4, Math.ceil(state.span / 24) + 3); HOURS = DAYS * 24;
+    }
+    function R0() { return +parse(addDays(state.anchor, -1)); }
+    function inDay(g, day) { var a = +parse(day), b = a + 864e5; return g.e > a && g.s < b; }
+    function dayGroups(gs) { return gs.filter(function (g) { return inDay(g, state.date); }); }
+    function tShort(d) { return (ymd(d) === state.date ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ') + hm(d); }
+    var state = { date: ymd(new Date()), anchor: ymd(new Date()), sel: null, f: 'day', scrollTo: 'now', span: 36 };
+    try { var sp = +localStorage.getItem('jtms.dispatch.span'); if (sp) state.span = sp; } catch (e) {}
+    var LEGS = [], SHIFTS = [];
+    var REASON = { r_wait: 'waiting at terminal or customer', r_traffic: 'traffic jam, will be late', r_damage: 'container damaged', r_wrong: 'wrong or missing container', r_docs: 'documents missing', r_truck: 'truck breakdown', r_other: 'other' };
+    var EV = { picked: 'Container picked up', sent: 'Sent to driver', recall: 'Taken back from phone', ack: 'Accepted by driver', start: 'Started driving', arrive: 'Arrived', done: 'Finished', problem: 'Problem', photo: 'Photo added', cn: 'Container number entered' };
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+    function hm(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function parse(s) { if (!s) return null; var d = new Date(s.length <= 10 ? s + 'T00:00' : s); return isNaN(d) ? null : d; }
+    function addDays(s, n) { var d = parse(s); d.setDate(d.getDate() + n); return ymd(d); }
+    function dayWord(d) {
+      var t = ymd(new Date()), x = ymd(d);
+      if (x === t) return 'today'; if (x === addDays(t, 1)) return 'tomorrow'; if (x === addDays(t, -1)) return 'yesterday';
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+    function when(d) { return d ? hm(d) + ' ' + dayWord(d) : ''; }
+    function dur(h) { var m = Math.round(h * 60); return Math.floor(m / 60) + ' h ' + pad(m % 60) + ' min'; }
+    function durS(h) { var m = Math.round(h * 60); return Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + pad(m % 60) + 'm' : ''); }
+    function toast(msg) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, 3200); }
+    function site(l) { return l.name || l.code; }
+    function srcTag(l) {
+      if (l.src === 'ors' || l.src === 'here') return '<span class="src" title="Truck route from ' + (l.src === 'ors' ? 'openrouteservice' : 'HERE') + '">truck route</span>' + (l.toll ? ' · tolls €' + l.toll.toFixed(2) : '');
+      return '<span class="src is-approx" title="Built-in motorway schema, ±5–15 %">approx.</span>';
+    }
+
+    // ---------- плечи всех открытых ордеров (км и отрезки времени — в timing.js) ----------
+    function load() {
+      LEGS = [];
+      store.list().forEach(function (o) {
+        if (o.status === 'cancelled') return;
+        TM.legs(o).forEach(function (l) {
+          if (o.status === 'done' && l.status === 'new') l.status = 'done';   // закрытый ордер без плана
+          LEGS.push(l);
+        });
+      });
+      checks();
+    }
+    function shiftOf(l) { return SHIFTS.find(function (sh) { return sh.legs.indexOf(l) >= 0; }); }
+    function shiftTxt(sh) { return durS(sh.h) + ' (' + hm(sh.s) + '–' + tShort(sh.e) + '), driving ' + durS(sh.drive); }
+    function orderLegs(id) { return LEGS.filter(function (l) { return l.order.id === id; }); }
+
+    // ---------- проверки: что требует внимания ----------
+    function checks() {
+      var now = Date.now();
+      LEGS.forEach(function (l) { l.warn = []; });
+      LEGS.forEach(function (l) {
+        if (l.issue && !l.issue.closed) l.warn.push('Driver: ' + (REASON[l.issue.type] || 'problem') + (l.issue.text ? ' — ' + l.issue.text : ''));
+        if (l.status === 'done') return;
+        if (!l.truck) {
+          var due = l.win || l.closing;
+          if (due && due - now < 24 * 3600e3) l.warn.push(l.win ? 'Not planned, ' + (l.stop_type === 'LADEN' ? 'loading' : 'unloading') + ' ' + when(l.win) : 'Not planned, closing ' + when(l.closing));
+          return;
+        }
+        if (l.status === 'planned' && l.s && now - l.s > 15 * 60e3) l.warn.push('Not started, planned ' + when(l.s));
+        var ss = legSend(l);
+        if (ss === 'none' && l.s && l.s - now < 3 * 3600e3) l.warn.push('Not sent to the driver (Orders), starts ' + when(l.s));
+        if (ss === 'changed') l.warn.push('Changed after sending: send the update to ' + l.truck + ' in Orders');
+        if (l.win && l.arrive && l.arrive - l.win > 30 * 60e3) l.warn.push('Arrives ' + hm(l.arrive) + ', booked for ' + hm(l.win));
+        if (l.closing && l.arrive && l.arrive > l.closing) l.warn.push('Arrives after closing ' + when(l.closing));
+      });
+      var byTruck = {};
+      LEGS.forEach(function (l) { if (l.truck && l.s) (byTruck[l.truck] = byTruck[l.truck] || []).push(l); });
+      // режим труда и отдыха (ЕС 561/2006) по сменам
+      SHIFTS = TM.shifts(LEGS);
+      SHIFTS.forEach(function (sh) {
+        var last = sh.legs[sh.legs.length - 1], w = [];
+        if (sh.h > C.SHIFT_EXT + 0.01) w.push('Shift ' + durS(sh.h) + ' on ' + sh.truck + ': over the ' + C.SHIFT_EXT + ' h maximum, the driver needs ' + C.REST_MIN + ' h rest');
+        else if (sh.extN > C.SHIFT_EXT_PER_WEEK) w.push('Shift ' + durS(sh.h) + ' on ' + sh.truck + ': long shift (over ' + C.SHIFT_MAX + ' h) no. ' + sh.extN + ' this week, only ' + C.SHIFT_EXT_PER_WEEK + ' allowed');
+        if (sh.drive > C.DAY_DRIVE_EXT + 0.01) w.push('Driving ' + durS(sh.drive) + ' in one shift on ' + sh.truck + ': over the ' + C.DAY_DRIVE_EXT + ' h maximum');
+        else if (sh.drvN > C.DRIVE_EXT_PER_WEEK) w.push('Driving ' + durS(sh.drive) + ' on ' + sh.truck + ': day over ' + C.DAY_DRIVE + ' h no. ' + sh.drvN + ' this week, only ' + C.DRIVE_EXT_PER_WEEK + ' allowed');
+        if (sh.weekDrive > C.WEEK_DRIVE + 0.01) w.push(sh.truck + ': ' + durS(sh.weekDrive) + ' driving this week, over ' + C.WEEK_DRIVE + ' h');
+        w.forEach(function (m) { last.warn.push(m); });
+      });
+      Object.keys(byTruck).forEach(function (k) {
+        var a = byTruck[k].sort(function (x, y) { return x.s - y.s; });
+        for (var i = 1; i < a.length; i++) if (a[i].s < a[i - 1].e - 60e3) a[i].warn.push('Overlaps the previous job on ' + k + ' (free from ' + hm(a[i - 1].e) + ')');
+      });
+    }
+
+    // ---------- выдача водителю: на телефоне видна версия на момент отправки ----------
+    function legSend(l) {
+      if (!l.truck || !l.start || l.status === 'done') return l.sent ? 'ack' : 'none';
+      if (!l.sent) return 'none';
+      if (l.sentTruck !== l.truck || l.sentStart !== l.start) return 'changed';
+      return l.ack && l.ack >= l.sent ? 'ack' : 'sent';
+    }
+    function sendState(legs) {
+      var st = legs.map(legSend);
+      if (st.indexOf('changed') >= 0) return 'changed';
+      if (st.indexOf('none') >= 0) return st.every(function (x) { return x === 'none'; }) ? 'none' : 'changed';
+      return st.indexOf('sent') >= 0 ? 'sent' : 'ack';
+    }
+    var SEND_TXT = { none: 'Not sent', sent: 'Sent', ack: 'Accepted', changed: 'Changed' };
+    var SEND_TIP = { none: 'Not on the driver\'s phone yet', sent: 'On the driver\'s phone, not accepted yet', ack: 'Driver accepted the job', changed: 'Changed after sending: the phone shows the old version' };
+    function sendJob(orderId, seqs, note) {   // отправить плечи работы (каждое — на свою машину)
+      var now = new Date().toISOString(), n = 0;
+      orderLegs(orderId).forEach(function (l) {
+        if (!l.truck || !l.start || l.status === 'done' || (seqs && seqs.indexOf(l.seq) < 0)) return;
+        if (legSend(l) === 'sent' || legSend(l) === 'ack') { if (note === undefined) return; }
+        var patch = { sent: now, sentTruck: l.truck, sentStart: l.start };
+        if (note !== undefined) patch.note = note;
+        store.legEvent(orderId, l.seq, 'sent', l.truck + ', ' + hm(l.s), patch); n++;
+      });
+      return n;
+    }
+    function recallJob(orderId) {
+      orderLegs(orderId).forEach(function (l) {
+        if (l.sent && l.status !== 'done') store.legEvent(orderId, l.seq, 'recall', l.sentTruck, { sent: '', sentTruck: '', sentStart: '', ack: '' });
+      });
+    }
+    function unsentGroups(gs, truck) { return gs.filter(function (g) { return (!truck || g.truck === truck) && g.status !== 'done' && (g.send === 'none' || g.send === 'changed'); }); }
+
+    // ---------- работы на доске: плечи одного ордера подряд на одной машине = один блок ----------
+    function groups() {
+      var a = R0(), b = a + HOURS * 3600e3;
+      var list = LEGS.filter(function (l) { return l.truck && l.s && l.e > a && l.s < b; })
+        .sort(function (x, y) { return x.truck < y.truck ? -1 : x.truck > y.truck ? 1 : x.s - y.s; });
+      var out = [];
+      list.forEach(function (l) {
+        var g = out[out.length - 1];
+        if (g && g.truck === l.truck && g.order === l.order && Math.abs(l.s - g.e) < 120e3) { g.legs.push(l); g.e = l.e; }
+        else out.push({ order: l.order, truck: l.truck, legs: [l], s: l.s, e: l.e });
+      });
+      out.forEach(function (g) {
+        g.seqs = g.legs.map(function (l) { return l.seq; });
+        g.km = g.legs.reduce(function (s, l) { return s + (l.km || 0); }, 0);
+        g.warn = g.legs.some(function (l) { return l.warn.length; });
+        g.send = sendState(g.legs.filter(function (l) { return l.status !== 'done'; }).length ? g.legs.filter(function (l) { return l.status !== 'done'; }) : g.legs);
+        g.status = g.legs.every(function (l) { return l.status === 'done'; }) ? 'done' : g.legs.some(function (l) { return l.status === 'driving'; }) ? 'live' : 'planned';
+      });
+      return out;
+    }
+
+    // ---------- шапка и цифры дня ----------
+    function renderHead(gs) {
+      $('date').textContent = parse(state.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      var trucks = {}, km = 0;
+      gs.forEach(function (g) { trucks[g.truck] = 1; km += g.km; });
+      var unJobs = {}; LEGS.forEach(function (l) { if (!l.truck && l.status !== 'done') unJobs[l.order.id] = 1; });
+      var at = LEGS.reduce(function (n, l) { return n + l.warn.length; }, 0);
+      $('stats').innerHTML = [
+        ['Trucks working', Object.keys(trucks).length + ' / ' + ref.trucks.length],
+        ['Jobs on this day', gs.length + (gs.length ? ' (' + gs.filter(function (g) { return g.status === 'done'; }).length + ' done)' : '')],
+        ['Driving now', LEGS.filter(function (l) { return l.status === 'driving'; }).length],
+        ['Planned distance', km.toLocaleString('en-GB') + ' km'],
+        ['Unplanned jobs', Object.keys(unJobs).length]
+      ].map(function (s) { return '<div class="stat"><b>' + s[1] + '</b><span>' + s[0] + '</span></div>'; }).join('') +
+        '<button type="button" class="stat' + (at ? ' stat--warn' : '') + '" id="go-attn"><b>' + at + '</b><span>Need attention</span></button>';
+    }
+
+    // ---------- доска ----------
+    function x(d) { return (d - R0()) / 3600e3 * PX; }   // px от начала шкалы
+    function segLabel(g, h) {
+      // на отрезке — время: начало–конец, если помещается, иначе начало; км не пишем (они в подсказке и карточке)
+      var w = h * PX;
+      if (!g.s) return '';
+      var range = hm(g.s) + '–' + hm(g.e), name = g.kind === 'drive' ? '' : g.kind === 'brk' ? 'Break' : g.kind === 'rest' ? 'Rest' : TM.LABEL[g.kind];
+      if (name && w >= 150) return name + ' ' + range;
+      if (w >= 76) return range;
+      if (w >= 34) return hm(g.s);
+      return '';
+    }
+    // Город погрузки/выгрузки и время, к которому надо там быть (слот). Красным — если по плану опаздываем.
+    function cityName(x) { return x === x.toUpperCase() ? x.replace(/[^\s-]+/g, function (w) { return w.charAt(0) + w.slice(1).toLowerCase(); }) : x; }
+    function placeOf(g) {
+      var parts = [], seen = {};
+      g.legs.forEach(function (l) {
+        if (!l.stop_type) return;
+        var st = l.toStop || {}, city = cityName(l.to.city || st.place || l.to.name || l.to.code || '');
+        var key = city + '|' + (l.win ? +l.win : '');
+        if (seen[key]) return; seen[key] = 1;
+        var late = l.win && l.arrive && l.arrive - l.win > 30 * 60e3;
+        parts.push('<b>' + esc(city) + '</b>' + (l.win ? ' <span class="slot' + (late ? ' is-late' : '') + '" title="' + (l.stop_type === 'LADEN' ? 'Loading' : 'Unloading') + ' slot ' + esc(when(l.win)) + (st.until ? '–' + esc(st.until) : '') +
+          (l.arrive ? '. Planned arrival ' + hm(l.arrive) + (late ? ' (late)' : '') : '') + '">' + (l.stop_type === 'LADEN' ? 'L ' : 'U ') + tShort(l.win) + '</span>' : ''));
+      });
+      return parts.length ? parts.join(' <span>·</span> ') : '<b>' + esc(g.order.customer) + '</b>';
+    }
+    function jobBlock(g) {
+      var a = x(g.s), b = x(g.e), span = g.e - g.s, o = g.order;
+      var cn = o.container_no ? iso.format(o.container_no) : (o.booking || '');
+      var cut = a < 0 ? (-a) / (b - a) * 100 : 0;   // начало раньше шкалы — текст сдвигаем
+      var segs = '';
+      g.legs.forEach(function (l) {
+        l.segs.forEach(function (sg) {
+          var left = (sg.s - g.s) / span * 100, w = (sg.e - sg.s) / span * 100;
+          var cls = sg.kind === 'drive' ? 'sg--drive' : sg.kind === 'brk' ? 'sg--brk' : sg.kind === 'rest' ? 'sg--rest' : sg.kind === 'pickup' || sg.kind === 'drop' ? 'sg--site' : 'sg--work';
+          var tip = TM.LABEL[sg.kind] + (sg.rest ? ' · driver rests in the cab, counts as a break' : '') + (sg.kind === 'rest' ? ' ' + durS(sg.h) + ': shift over, the driver sleeps before driving on' : sg.kind === 'brk' ? ' (EU: 45 min after 4.5 h driving)' : sg.kind === 'drive' ? ' to ' + site(sg.at) + (sg.km != null ? ', ' + sg.km + ' km' : '') : ' · ' + site(sg.at)) + '\n' + hm(sg.s) + '–' + hm(sg.e) + ' (' + dur(sg.h) + ')';
+          segs += '<span class="sg ' + cls + ' st-' + l.status + '" style="left:' + left.toFixed(3) + '%;width:' + w.toFixed(3) + '%" title="' + esc(tip) + '"><i>' + esc(segLabel(sg, sg.h)) + '</i></span>';
+        });
+      });
+      var full = g.legs.some(function (l) { return l.load === 'full'; });
+      var tip = o.customer + ' · ' + cn + '\n' + hm(g.s) + '–' + hm(g.e) + ', ' + g.km + ' km' + (g.warn ? '\n⚠ ' + g.legs.reduce(function (m, l) { return m.concat(l.warn); }, []).join('\n⚠ ') : '');
+      return '<button type="button" class="jb is-' + g.status + (g.warn ? ' is-warn' : '') + (state.sel === o.id ? ' is-sel' : '') + '" draggable="true" data-job="' + esc(o.id) + '" data-seqs="' + g.seqs.join(',') + '" ' +
+        'style="left:' + a.toFixed(1) + 'px;width:' + (b - a).toFixed(1) + 'px" title="' + esc(tip) + '">' +
+        '<span class="jt" style="padding-left:calc(' + cut.toFixed(2) + '% + 8px)">' + (g.status === 'done' ? '' : '<span class="snd snd--' + g.send + '" title="' + SEND_TIP[g.send] + '">' + (g.send === 'ack' ? '✓✓ ' : g.send === 'sent' ? '✓ ' : '') + SEND_TXT[g.send] + '</span>') + '<span class="ld' + (full ? ' ld--full' : '') + '">' + (full ? 'F' : 'E') + '</span>' + placeOf(g) + ' <span>· ' + esc(cn) + ' · ' + tShort(g.s) + ' – ' + tShort(g.e) + '</span></span>' +
+        '<span class="segs">' + segs + '</span></button>';
+    }
+    function renderBoard(gs) {
+      var by = {}, byDay = {}, dg = dayGroups(gs);
+      gs.forEach(function (g) { (by[g.truck] = by[g.truck] || []).push(g); });
+      dg.forEach(function (g) { (byDay[g.truck] = byDay[g.truck] || []).push(g); });
+      var prevPX = state.px || PX; fitPX(); state.px = PX;
+      var STEP = PX >= 34 ? 1 : PX >= 18 ? 2 : PX >= 11 ? 3 : 6;   // подписи часов: каждый / 2 / 3 / 6 ч
+      var hours = '', lines = '', today = ymd(new Date());
+      for (var h = 0; h < HOURS; h += 1) {
+        var hd = new Date(R0() + h * 3600e3);
+        if (hd.getHours() === 0) {
+          hours += '<span class="dl' + (ymd(hd) === today ? ' is-today' : '') + '" style="left:' + h * PX + 'px">' + hd.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (ymd(hd) === today ? ' · today' : '') + '</span>';
+          lines += '<i style="left:' + (h * PX - 1) + 'px"></i>';
+        } else if (hd.getHours() % STEP === 0 && hd.getHours() >= STEP + 1) hours += '<span style="left:' + h * PX + 'px">' + pad(hd.getHours()) + '</span>';
+      }
+      var rows = ref.trucks.map(function (t) {
+        var g = byDay[t.fleet] || [], km = g.reduce(function (s, j) { return s + j.km; }, 0);
+        var hrs = g.reduce(function (s, j) { return s + (j.e - j.s) / 3600e3; }, 0);
+        var sh = SHIFTS.filter(function (x) { return x.truck === t.fleet && inDay(x, state.date); })[0];
+        var over = sh && (sh.h > C.SHIFT_MAX + 0.01 || sh.drive > C.DAY_DRIVE + 0.01);
+        var tip = t.fleet + ' · ' + t.plate + ' · ' + (t.driver || '') + (g.length ? '\n' + g.length + ' job' + (g.length > 1 ? 's' : '') + ', ' + km + ' km' + (sh ? '\nShift ' + durS(sh.h) + ', driving ' + durS(sh.drive) : '') : '\nFree');
+        return '<div class="row' + (g.length ? '' : ' is-free') + '"><div class="label" title="' + esc(tip) + '"><div class="fl"><span class="fleet">' + esc(t.fleet) + '</span><span class="plate">' + esc(t.plate) + '</span>' +
+          '</div><div class="l2"><span class="drv">' + esc(t.driver || '') + '</span>' +
+          '<span class="sh' + (over ? ' is-over' : '') + '" title="Shift length / driving time">' + (sh ? durS(sh.h).replace('m', '') + ' / ' + durS(sh.drive).replace('m', '') : g.length ? '' : 'free') + '</span></div></div>' +
+          '<div class="track" data-truck="' + esc(t.fleet) + '">' + (by[t.fleet] || []).map(jobBlock).join('') + '</div></div>';
+      }).join('');
+      var sc = $('board').parentNode, keepT = state.r0 != null ? state.r0 + sc.scrollLeft / prevPX * 3600e3 : null;   // время у левого края до перерисовки
+      $('board').style.setProperty('--tw', HOURS * PX + 'px'); $('board').style.setProperty('--px', PX * STEP + 'px');
+      $('board').innerHTML = '<div class="bhead"><div class="bcorner">Truck, driver</div><div class="hours">' + hours + '</div></div>' + rows + '<div class="daylines">' + lines + '</div><div class="now" id="now" hidden></div>';
+      // прокрутка: к «сейчас» / к выбранному дню, иначе — оставить, где была
+      var before = sc.scrollLeft;
+      if (state.scrollTo === 'now') sc.scrollLeft = Math.max(0, x(new Date(Date.now() - 3 * 3600e3)));
+      else if (state.scrollTo === 'day') sc.scrollLeft = x(new Date(+parse(state.date) + 5 * 3600e3));
+      else if (keepT != null) sc.scrollLeft = (keepT - R0()) / 3600e3 * PX;
+      state.scrollTo = null; state.r0 = R0(); if (Math.abs(sc.scrollLeft - before) > 1) state.progScroll = true;   // эту прокрутку сделали мы, не диспетчер
+      gs = dg;
+      $('board-foot').innerHTML = gs.length ? '' : '<div class="board-empty">Nothing planned on this day yet.' +
+        (state.date === ymd(new Date()) ? ' <button type="button" class="btn btn--sm" id="demo">Load demo day</button>' : '') + '</div>';
+      updateNow();
+    }
+    function updateNow() {
+      var n = $('now'); if (!n) return;
+      var p = x(new Date()), tg = document.querySelector('.hours .nowtag');
+      if (!tg) { tg = document.createElement('span'); tg.className = 'nowtag'; var hh = document.querySelector('.hours'); if (hh) hh.appendChild(tg); }
+      if (p < 0 || p > HOURS * PX) { n.hidden = true; if (tg) tg.hidden = true; return; }
+      tg.hidden = false; tg.style.left = p + 'px'; tg.textContent = hm(new Date());
+      var lw = document.querySelector('.label').offsetWidth;
+      n.hidden = false; n.style.left = (lw + p - 1) + 'px'; n.setAttribute('data-t', hm(new Date()));
+    }
+
+    // ---------- непланированные работы и внимание ----------
+    function unplannedJobs() {
+      var by = {};
+      LEGS.forEach(function (l) { if (!l.truck && l.status !== 'done') (by[l.order.id] = by[l.order.id] || []).push(l); });
+      return Object.keys(by).map(function (id) {
+        var ls = by[id], o = ls[0].order;
+        var due = ls.map(function (l) { return l.win || l.closing; }).filter(Boolean).sort(function (a, b) { return a - b; })[0] || null;
+        var dl = ls.find(function (l) { return (l.win || l.closing) === due; });
+        return { order: o, legs: ls, due: due, dueLeg: dl, km: ls.reduce(function (s, l) { return s + (l.km || 0); }, 0), h: ls.reduce(function (s, l) { return s + l.totalH; }, 0), hot: ls.some(function (l) { return l.warn.length; }) };
+      });
+    }
+    function renderSide() {
+      var day1 = parse(addDays(state.date, 1));
+      var jobs = unplannedJobs();
+      var shown = state.f === 'all' ? jobs : jobs.filter(function (j) { return !j.due || j.due < day1; });
+      shown.sort(function (a, b) { return (a.due ? +a.due : 9e15) - (b.due ? +b.due : 9e15); });
+      $('un-n').textContent = jobs.length;
+      $('unplanned').innerHTML = shown.length ? shown.map(function (j) {
+        var o = j.order, l = j.dueLeg;
+        var dueTxt = !l ? '' : l.win ? (l.stop_type === 'LADEN' ? 'Load ' : l.stop_type === 'LOSSEN' ? 'Unload ' : 'At ') + when(l.win) : 'Closing ' + when(l.closing);
+        var chain = [j.legs[0].from.code].concat(j.legs.map(function (x) { return x.to.code; })).join(' → ');
+        return '<button type="button" class="job' + (state.sel === o.id ? ' is-sel' : '') + '" draggable="true" data-job="' + esc(o.id) + '" data-seqs="' + j.legs.map(function (x) { return x.seq; }).join(',') + '">' +
+          '<div class="j1"><span class="cust">' + esc(o.customer) + '</span><span class="due' + (j.hot ? ' is-hot' : '') + '">' + esc(dueTxt) + '</span></div>' +
+          '<div class="j2"><span class="code">' + esc(chain) + '</span></div>' +
+          '<div class="j2"><span>' + j.km + ' km</span><span>' + durS(j.h) + ' with pick-up, ' + (j.legs.some(function (x) { return x.stop_type; }) ? 'loading/unloading, ' : '') + 'drop-off</span></div>' +
+          '<div class="j2"><span class="code">' + esc(o.container_no ? iso.format(o.container_no) : 'No container no.') + '</span><span>' + esc(o.ct && o.ct.type || '') + '</span>' + (o.truck ? '<span>Booked: ' + esc(o.truck) + '</span>' : '') + '</div></button>';
+      }).join('') : '<div class="empty">' + (jobs.length ? 'Nothing due on this day. ' + jobs.length + ' more under All open.' : 'Every job is planned.') + '</div>';
+
+      // каждое предупреждение — отдельной строкой (у одной работы их может быть несколько)
+      var at = LEGS.filter(function (l) { return l.warn.length; }).sort(function (a, b) { return (a.s || a.win || 0) - (b.s || b.win || 0); })
+        .reduce(function (m, l) { return m.concat(l.warn.map(function (w) { return { l: l, w: w }; })); }, []);
+      $('attn-n').textContent = at.length || '';
+      $('attn').innerHTML = at.length ? at.map(function (x) {
+        var l = x.l;
+        return '<button type="button" class="alert" data-job="' + esc(l.order.id) + '" data-day="' + (l.s ? ymd(l.s) : '') + '"><b>' + esc(x.w) + '</b><br><span>' + esc(l.order.customer) + ' · ' + esc(l.from.code) + ' → ' + esc(l.to.code) + (l.truck ? ' · ' + esc(l.truck) : '') + '</span></button>';
+      }).join('') : '<div class="empty">All good on the plan.</div>';
+    }
+
+    // ---------- карточка выбранной работы ----------
+    function suggestStart(id, fleet, date, first) {
+      // после последней работы машины в этот день; к слоту — с учётом забора и дороги
+      var ends = LEGS.filter(function (x) { return x.truck === fleet && x.s && ymd(x.s) === date && x.order.id !== id; }).map(function (x) { return +x.e; });
+      var t = ends.length ? Math.max.apply(null, ends) : +parse(date + 'T06:00');
+      if (first && first.win && ymd(first.win) === date) t = Math.max(t, +first.win - (first.preH + first.driveH) * 3600e3);
+      var d = new Date(t); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+      return d;
+    }
+    function renderDetail() {
+      var box = $('detail'), ls = orderLegs(state.sel);
+      if (!ls.length) { box.hidden = true; return; }
+      var o = ls[0].order, open = ls.filter(function (l) { return l.status !== 'done'; }), first = open[0] || ls[0];
+      var planned = ls.filter(function (l) { return l.truck && l.s; });
+      var t = (first.truck || o.truck || ref.trucks[0].fleet);
+      var date = first.s ? ymd(first.s) : state.date, start = first.s || suggestStart(o.id, t, date, first);
+      var warns = ls.reduce(function (m, l) { return m.concat(l.warn); }, []);
+      var rr = null;
+      try { var ids = [ls[0].from].concat(ls.map(function (l) { return l.to; })).map(function (p) { var q = JTMS.route.resolve(p); return q && q.id; }); if (ids.every(Boolean)) rr = JTMS.route.route(ids); } catch (e) {}
+      var km = ls.reduce(function (s, l) { return s + (l.km || 0); }, 0), tot = ls.reduce(function (s, l) { return s + l.totalH; }, 0);
+      function segRow(sg, l) {
+        return '<div class="sr"><span class="tm">' + (sg.s ? hm(sg.s) + '–' + hm(sg.e) : durS(sg.h)) + '</span><span class="sw sw--' + (sg.kind === 'drive' ? 'drive' : sg.kind === 'rest' ? 'rest' : sg.kind === 'brk' ? 'brk' : sg.kind === 'pickup' || sg.kind === 'drop' ? 'site' : 'work') + '"></span><span>' +
+          (sg.kind === 'rest' ? '<b>Daily rest ' + durS(sg.h) + '</b>, new shift at ' + (sg.e ? tShort(sg.e) : '') : sg.kind === 'brk' ? 'Break 45 min' : (sg.rest ? esc(TM.LABEL[sg.kind]) + ' (driver rests)' : esc(TM.LABEL[sg.kind])) + (sg.kind === 'drive' ? (sg.part ? ' (continued)' : ' to ' + esc(site(sg.at)) + (sg.km != null ? ', ' + sg.km + ' km' + srcTag(l) : '')) : ' · ' + esc(site(sg.at)))) + '</span></div>';
+      }
+      var trucksUsed = ls.map(function (l) { return l.truck || ''; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+      var whole = trucksUsed.length === 1;   // вся работа на одной машине (или вся не запланирована) — показываем одним куском
+      var jobSt = ls.every(function (l) { return l.status === 'done'; }) ? 'done' : ls.some(function (l) { return l.status === 'driving' || l.status === 'done'; }) ? 'driving' : 'planned';
+      var sched = whole
+        ? '<div class="lg"><div class="lgh"><b>' + esc([ls[0].from.code].concat(ls.map(function (l) { return l.to.code; })).join(' → ')) + '</b>' + (ls[0].truck ? ' · ' + esc(ls[0].truck) : ' · <em>not planned</em>') +
+            (ls[0].truck ? '<span class="mini">' + [['planned', 'Planned'], ['driving', 'Driving'], ['done', 'Done']].map(function (s2) { return '<button type="button" data-jst="' + s2[0] + '" class="' + (jobSt === s2[0] ? 'is-on' : '') + '">' + s2[1] + '</button>'; }).join('') + '</span>' : '') + '</div>' +
+            ls.map(function (l) { return l.segs.map(function (sg) { return segRow(sg, l); }).join(''); }).join('') + '</div>'
+        : ls.map(function (l) {   // работа разделена между машинами (дроп) — по частям
+            return '<div class="lg"><div class="lgh"><b>' + esc(l.from.code) + ' → ' + esc(l.to.code) + '</b> · ' + (l.load === 'full' ? 'full' : 'empty') + (l.truck ? ' · ' + esc(l.truck) : ' · <em>not planned</em>') +
+              (l.truck ? '<span class="mini">' + [['planned', 'Planned'], ['driving', 'Driving'], ['done', 'Done']].map(function (s2) { return '<button type="button" data-st="' + s2[0] + '" data-seq="' + l.seq + '" class="' + (l.status === s2[0] ? 'is-on' : '') + '">' + s2[1] + '</button>'; }).join('') + '</span>' : '') + '</div>' +
+              l.segs.map(function (sg) { return segRow(sg, l); }).join('') + '</div>';
+          }).join('');
+      var evs = ls.reduce(function (m, l) { return m.concat((l.events || []).map(function (e) { return Object.assign({ seq: l.seq }, e); })); }, []).sort(function (a, b) { return a.t < b.t ? 1 : -1; });
+      var photos = JTMS.files.list(o);
+      var issue = ls.find(function (l) { return l.issue && !l.issue.closed; });
+      box.hidden = false;
+      box.innerHTML = '<div class="ptitle">' + esc(o.customer) + ' <span class="n">' + esc(o.booking || '') + '</span><button type="button" class="x" id="close-det" aria-label="Close">×</button></div>' +
+        '<div class="det">' +
+        (warns.length ? '<div class="warnbox">' + warns.map(esc).join('<br>') + '</div>' : '') +
+        '<dl class="kv">' +
+          '<dt>Container</dt><dd>' + esc(o.container_no ? iso.format(o.container_no) : 'not known yet') + ' · ' + esc(o.ct && o.ct.type || '') + '</dd>' +
+          '<dt>Line</dt><dd>' + esc(o.shipping_line || '—') + '</dd>' +
+          '<dt>Job</dt><dd>' + km + ' km · ' + dur(tot) + (planned.length ? ' · ' + hm(planned[0].s) + '–' + hm(planned[planned.length - 1].e) : '') + '</dd>' +
+          (ls.some(function (l) { return l.toll; }) ? '<dt>Tolls</dt><dd>€' + ls.reduce(function (s2, l) { return s2 + (l.toll || 0); }, 0).toFixed(2) + ' (HERE estimate)</dd>' : '') +
+          (function () {
+            var sh = ls.filter(function (l) { return l.truck && l.s; }).map(shiftOf).filter(Boolean)[0]; if (!sh) return '';
+            return '<dt>Shift</dt><dd>' + shiftTxt(sh) + (sh.legs.some(function (l) { return l.order !== ls[0].order; }) ? ', with other jobs' : '') + '</dd>' +
+              '<dt>This week</dt><dd>' + sh.truck + ': shifts over ' + C.SHIFT_MAX + ' h ' + sh.wk.ext + '/' + C.SHIFT_EXT_PER_WEEK + ' · driving over ' + C.DAY_DRIVE + ' h ' + sh.wk.drv + '/' + C.DRIVE_EXT_PER_WEEK + ' · driving ' + durS(sh.wk.drive) + ' of ' + C.WEEK_DRIVE + ' h</dd>';
+          })() +
+          (function () {
+            var lst = ls[ls.length - 1]; if (!lst.shiftLeft || !lst.truck) return '';
+            var rs = ls.reduce(function (n, l) { return n + l.segs.filter(function (g) { return g.kind === 'rest'; }).length; }, 0);
+            return (rs ? '<dt>Daily rest</dt><dd>' + rs + ' × ' + durS(C.REST_H) + ' inside the job</dd>' : '') +
+              '<dt>After the job</dt><dd>' + durS(Math.max(0, lst.shiftLeft.drive)) + ' driving and ' + durS(Math.max(0, lst.shiftLeft.shift)) + ' of the shift left</dd>';
+          })() +
+          '<dt>Driving</dt><dd>' + dur(ls.reduce(function (s2, l) { return s2 + l.driveH; }, 0)) + (ls.some(function (l) { return l.breaks; }) ? ' + ' + ls.reduce(function (s2, l) { return s2 + l.breaks; }, 0) + ' × 45 min break' : '') + '</dd>' +
+        '</dl>' +
+        '<div class="sched">' + sched + '</div>' +
+        (rr ? '<div class="mapbox">' + JTMS.route.svg(rr, { width: 348, height: 190 }) + '</div><div class="roads">' + esc(rr.roads.join(' → ')) + (rr.borders.length ? '<br>Border: ' + esc(rr.borders.map(JTMS.route.name).join(', ')) : '') + '</div>' : '') +
+        (evs.length || photos.length ? '<div class="evlog"><div class="evh">From the driver app</div>' + evs.map(function (e) {
+          return '<div><b>' + hm(new Date(e.t)) + '</b><span>' + esc(EV[e.type] || e.type) + (e.text ? ' — ' + esc(e.text) : '') + '</span></div>'; }).join('') +
+          (photos.length ? '<div class="evph">' + photos.map(function (f) { return '<span class="evf" title="' + esc(f.name) + '"><img src="' + f.data + '" alt="' + esc(f.type + ' ' + f.name) + '"><i>' + f.type + '</i></span>'; }).join('') + '</div><div style="font-size:12px;color:var(--ink-2);margin-top:4px">' + photos.length + ' file(s) · open the order in Orders → Attachments</div>' : '') +
+          (issue ? '<button type="button" class="btn btn--sm" id="p-solve" data-seq="' + issue.seq + '" style="margin-top:8px">Mark problem as solved</button>' : '') + '</div>' : '') +
+        (open.some(function (l) { return l.truck; }) ? (function () {
+          var sl = open.filter(function (l) { return l.truck; }), ss = sendState(sl), last = sl.map(function (l) { return l.sent; }).filter(Boolean).sort().pop();
+          var acked = sl.map(function (l) { return l.ack; }).filter(Boolean).sort().pop();
+          var trk = sl.map(function (l) { return l.truck; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).map(function (f) { var tr = ref.trucks.find(function (x) { return x.fleet === f; }); return f + (tr && tr.driver ? ' · ' + tr.driver : ''); }).join(', ');
+          return '<div class="drvbox"><div class="dh"><b>Driver\'s phone</b><span class="snd snd--' + ss + '">' + SEND_TXT[ss] + '</span><span style="color:var(--ink-2)">' +
+            (ss === 'none' ? 'Not sent to ' + esc(trk) : ss === 'changed' ? 'The phone shows the old version' : ss === 'ack' ? 'Accepted ' + hm(new Date(acked)) : 'Sent ' + hm(new Date(last)) + ', waiting for the driver') + '</span></div>' +
+            (sl[0].note ? '<div style="font-size:13px;color:var(--ink-2)">Note: ' + esc(sl[0].note) + '</div>' : '') +
+            '<div class="acts"><button type="button" class="btn" id="p-orders">' + (ss === 'none' || ss === 'changed' ? 'Send in Orders' : 'Open in Orders') + '</button></div></div>';
+        })() : '') +
+        (open.length ? '<div class="form">' +
+          '<label class="wide">Truck<select id="p-truck">' + ref.trucks.map(function (x) { return '<option value="' + x.fleet + '"' + (x.fleet === t ? ' selected' : '') + '>' + x.fleet + ' · ' + esc(x.driver || '') + ' · ' + x.plate + '</option>'; }).join('') + '</select></label>' +
+          '<label>Date<input type="date" id="p-date" value="' + date + '"></label>' +
+          '<label>Start' + (first.seq === 1 ? ' of pick-up' : '') + '<input type="time" id="p-time" step="300" value="' + hm(start) + '"></label>' +
+          '<button type="button" class="btn btn--ghost wide" id="p-after" style="grid-column:1/-1;justify-self:start;height:30px;padding:0 4px;color:var(--blue)">Right after this truck\'s previous job</button>' +
+        '</div>' : '') +
+        '<div class="acts">' + (open.length ? '<button type="button" class="btn btn--brand" id="p-save">' + (open.some(function (l) { return l.truck; }) ? 'Update plan' : 'Plan this job') + '</button>' : '') +
+          (open.some(function (l) { return l.truck; }) ? '<button type="button" class="btn" id="p-unplan">Unplan</button>' : '') +
+          '<button type="button" class="btn btn--ghost" id="p-edit">Edit order</button></div>' +
+        '</div>';
+    }
+
+    // ---------- действия ----------
+    function seqsOf(el) { return (el.getAttribute('data-seqs') || '').split(',').filter(Boolean).map(Number); }
+    function plan(id, fleet, startStr, seqs) {
+      TM.planJob(id, fleet, startStr, seqs);
+      state.sel = id; render();
+      var ws = orderLegs(id).reduce(function (m, l) { return m.concat(l.warn); }, []);
+      toast(orderLegs(id)[0].order.customer + ': ' + fleet + ', pick-up ' + startStr.slice(11) + (ws.length ? ' · ' + ws[0] : ''));
+    }
+    function unplan(id, seqs) {
+      var wasSent = orderLegs(id).some(function (l) { return l.sent && l.status !== 'done' && (!seqs || seqs.indexOf(l.seq) >= 0); });
+      orderLegs(id).forEach(function (l) { if (l.status !== 'done' && (!seqs || seqs.indexOf(l.seq) >= 0)) store.plan(id, l.seq, null); });
+      render(); toast(orderLegs(id)[0].order.customer + ': taken off the board' + (wasSent ? ' and off the driver\'s phone' : ''));
+    }
+    function select(id) { state.sel = state.sel === id ? null : id; paintSel(); renderSide(); renderDetail(); renderBoard(groups()); if (state.sel && window.innerWidth <= 1180) $('detail').scrollIntoView({ behavior: 'smooth' }); }
+    function paintSel() { document.querySelectorAll('.jb').forEach(function (b) { b.classList.toggle('is-sel', b.getAttribute('data-job') === state.sel); }); }
+    function renderRoutes() {
+      var G = JTMS.geo, st = G.status();
+      var approx = LEGS.filter(function (l) { return l.status !== 'done' && l.src !== 'ors' && l.src !== 'here'; }).length;
+      if (!st.active) { $('rstat').innerHTML = '<span class="dotx is-approx"></span>Distances: approximate, from the built-in motorway schema (±5–15 %, wrong outside BE NL DE FR LU PL). <a href="settings.html">Set up truck routing</a>'; return; }
+      $('rstat').innerHTML = '<span class="dotx' + (st.error ? ' is-err' : '') + '"></span>Distances: ' + esc(G.NAMES[st.provider]) + ' · ' + st.cached + ' routes saved' +
+        (st.pending ? ' · loading ' + st.pending + '…' : approx ? ' · ' + approx + ' legs still approximate' : '') + (st.error ? ' · <span class="err">' + esc(st.error) + '</span>' : '') + ' · <a href="settings.html">Settings</a>';
+    }
+    function askRoutes() {   // маршруты для работ на экране и непланированных
+      var d0 = parse(state.date), d2 = +d0 + 2 * 864e5;
+      JTMS.geo.ensure(LEGS.filter(function (l) { return l.status !== 'done' && (!l.s || (l.s >= d0 - 864e5 && l.s < d2)) && l.src !== 'ors' && l.src !== 'here'; })
+        .map(function (l) { return { from: l.from, to: l.to }; }));
+    }
+    // rechain: длительности могли измениться (маршрут от сервиса, нормы) — плечи работы снова встают подряд
+    function render() { TM.rechain(); load(); var gs = groups(); renderHead(dayGroups(gs)); renderBoard(gs); renderSide(); renderDetail(); renderRoutes(); askRoutes(); }
+    JTMS.geo.onChange(function () {   // пришли маршруты от сервиса — пересчитать (кроме момента, когда диспетчер вводит время)
+      if (document.querySelector('#detail input:focus, #detail select:focus') || drag) { renderRoutes(); return; }
+      render();
+    });
+
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      var st = t.closest('[data-st]');
+      if (st && state.sel) { store.plan(state.sel, +st.getAttribute('data-seq'), { status: st.getAttribute('data-st') }); render(); return; }
+      var jst = t.closest('[data-jst]');
+      if (jst && state.sel) {   // статус всей работы
+        var v = jst.getAttribute('data-jst'), lsj = orderLegs(state.sel), firstOpen = lsj.find(function (l) { return l.status !== 'done'; });
+        lsj.forEach(function (l) {
+          if (!l.truck) return;
+          var nv = v === 'done' ? 'done' : v === 'planned' ? 'planned' : (l === firstOpen ? 'driving' : l.status === 'done' ? 'done' : 'planned');
+          if (nv !== l.status) store.plan(state.sel, l.seq, { status: nv });
+        });
+        render(); return;
+      }
+      var jb = t.closest('[data-job]');
+      if (jb) {
+        var day = jb.getAttribute('data-day');
+        if (day && day !== state.date) { state.date = day; state.sel = jb.getAttribute('data-job'); render(); return; }
+        select(jb.getAttribute('data-job')); return;
+      }
+      if (t.closest('#close-det')) { state.sel = null; paintSel(); renderSide(); renderDetail(); return; }
+      if (t.closest('#go-attn')) { $('attn-panel').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      var chip = t.closest('#un-chips .chip');
+      if (chip) { state.f = chip.getAttribute('data-f'); document.querySelectorAll('#un-chips .chip').forEach(function (c) { c.classList.toggle('is-on', c === chip); }); renderSide(); return; }
+      if (t.closest('#demo')) { store.addMany(JTMS.samples.day()); render(); toast('Loaded a demo day: ' + groups().length + ' jobs'); return; }
+      if (!state.sel) return;
+      if (t.closest('#p-save')) {
+        var d = $('p-date').value, h = $('p-time').value;
+        if (!d || !h) { toast('Pick a date and a start time'); return; }
+        if (d !== state.date) state.date = d;
+        plan(state.sel, $('p-truck').value, d + 'T' + h);
+        return;
+      }
+      if (t.closest('#p-unplan')) { unplan(state.sel); return; }
+      if (t.closest('#p-after')) {   // конец последней другой работы этой машины до выбранного дня включительно
+        var fl = $('p-truck').value, dd = $('p-date').value || state.date, lim = +parse(addDays(dd, 1));
+        var ends = LEGS.filter(function (l) { return l.truck === fl && l.e && l.order.id !== state.sel && +l.s < lim; }).map(function (l) { return +l.e; });
+        if (!ends.length) { toast(fl + ' has no other job before ' + dd.split('-').reverse().join('.')); return; }
+        var te = new Date(Math.ceil(Math.max.apply(null, ends) / 300e3) * 300e3);
+        $('p-date').value = ymd(te); $('p-time').value = hm(te); toast('Start ' + tShort(te) + ', right after the previous job. Press ' + ($('p-save').textContent) + '.'); return;
+      }
+      if (t.closest('#p-orders')) {   // отправка водителю — в Orders: открываем там этот ордер
+        try { sessionStorage.setItem('jtms.flash', JSON.stringify({ id: state.sel, open: true, text: 'Send the job to the driver in the card on the right' })); } catch (err) {}
+        location.href = 'orders.html'; return;
+      }
+      var sv = t.closest('#p-solve');
+      if (sv) { var l = orderLegs(state.sel).find(function (x) { return x.seq === +sv.getAttribute('data-seq'); }); store.plan(state.sel, l.seq, { issue: Object.assign({}, l.issue, { closed: new Date().toISOString() }) }); render(); toast('Problem marked as solved'); return; }
+      if (t.closest('#p-edit')) { try { sessionStorage.setItem('jtms.open', JSON.stringify({ mode: 'edit', id: state.sel })); } catch (err) {} location.href = 'order-new.html'; return; }
+    });
+    document.addEventListener('change', function (e) {
+      if (!state.sel || (e.target.id !== 'p-truck' && e.target.id !== 'p-date')) return;
+      var open = orderLegs(state.sel).filter(function (l) { return l.status !== 'done'; });
+      if (open.some(function (l) { return l.truck; }) && e.target.id === 'p-truck') return;   // у запланированного время не трогаем
+      $('p-time').value = hm(suggestStart(state.sel, $('p-truck').value, $('p-date').value || state.date, open[0]));
+    });
+
+    // ---------- перетаскивание ----------
+    var drag = null;
+    function snapAt(track, clientX, orderId) {
+      var r = track.getBoundingClientRect(), hrs = Math.max(0, Math.min(HOURS - 0.25, (clientX - r.left) / PX));
+      var t = new Date(R0() + Math.round(hrs * 4) * 15 * 60e3), after = null;
+      // работа той же машины, которая кончается рядом (±1 ч) или накрывает точку броска — ставим сразу за ней
+      groups().filter(function (g) { return g.truck === track.getAttribute('data-truck') && g.order.id !== orderId; }).forEach(function (g) {
+        if ((t >= g.s && t < g.e) || Math.abs(t - g.e) <= 3600e3) { if (!after || g.e > after.e) after = g; }
+      });
+      if (after) { t = new Date(Math.ceil(+after.e / 300e3) * 300e3); }   // до 5 минут вверх
+      return { str: TM.local(t), px: (t - R0()) / 3600e3 * PX, label: (after ? 'after ' + after.order.customer + ' · ' : '') + tShort(t) };
+    }
+    function clearDrop() { document.querySelectorAll('.is-drop').forEach(function (z) { z.classList.remove('is-drop'); }); document.querySelectorAll('.drop-mark').forEach(function (m) { m.remove(); }); }
+    document.addEventListener('dragstart', function (e) {
+      var el = e.target.closest && e.target.closest('[data-job]'); if (!el) return;
+      drag = { id: el.getAttribute('data-job'), seqs: seqsOf(el), dx: 0, onBoard: el.classList.contains('jb') };
+      if (drag.onBoard) {   // держим блок за то место, где взяли (с учётом части, ушедшей за край)
+        var r = el.getBoundingClientRect(), tr = el.parentNode.getBoundingClientRect();
+        drag.dx = e.clientX - r.left;
+      }
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', drag.id);
+    });
+    document.addEventListener('dragend', function () { drag = null; clearDrop(); });
+    document.addEventListener('dragover', function (e) {
+      if (!drag) return;
+      var tr = e.target.closest && e.target.closest('.track'), un = e.target.closest && e.target.closest('#unplanned');
+      if (!tr && !un) return;
+      e.preventDefault();
+      document.querySelectorAll('.is-drop').forEach(function (z) { if (z !== tr && z !== un) z.classList.remove('is-drop'); });
+      (tr || un).classList.add('is-drop');
+      if (tr) {
+        var s = snapAt(tr, e.clientX - drag.dx, drag.id), m = tr.querySelector('.drop-mark');
+        if (!m) { m = document.createElement('div'); m.className = 'drop-mark'; tr.appendChild(m); document.querySelectorAll('.drop-mark').forEach(function (z) { if (z !== m) z.remove(); }); }
+        m.style.left = s.px + 'px'; m.setAttribute('data-t', s.label);
+      }
+    });
+    document.addEventListener('drop', function (e) {
+      if (!drag) return;
+      var d = drag, tr = e.target.closest && e.target.closest('.track'), un = e.target.closest && e.target.closest('#unplanned');
+      e.preventDefault(); clearDrop(); drag = null;
+      if (un) { if (d.onBoard) unplan(d.id, d.seqs); return; }
+      if (tr) plan(d.id, tr.getAttribute('data-truck'), snapAt(tr, e.clientX - d.dx, d.id).str, d.seqs);
+    });
+
+    // ---------- навигация по дням ----------
+    function go(n) { state.date = n === 0 ? ymd(new Date()) : addDays(state.date, n); state.anchor = state.date; state.scrollTo = n === 0 ? 'now' : 'day'; render(); }
+    // при прокрутке: день в центре экрана становится выбранным; у края шкалы — сдвигаем её
+    var scTimer = null;
+    document.querySelector('.board-scroll').addEventListener('scroll', function () {
+      clearTimeout(scTimer);
+      scTimer = setTimeout(function () {
+        if (state.progScroll) { state.progScroll = false; return; }
+        var sc = document.querySelector('.board-scroll'), lw = document.querySelector('.label').offsetWidth;
+        var mid = new Date(R0() + (sc.scrollLeft + (sc.clientWidth - lw) * 0.3) / PX * 3600e3), d = ymd(mid);   // день — по левой трети экрана
+        if (d !== state.date) { state.date = d; load(); var gs = groups(); renderHead(dayGroups(gs)); renderSide(); paintRows(gs); }
+        var leftH = sc.scrollLeft / PX, rightH = HOURS - (sc.scrollLeft + sc.clientWidth - lw) / PX;
+        if (leftH < 6 || rightH < 6) { state.anchor = state.date; render(); }
+      }, 120);
+    });
+    function paintRows(gs) { renderBoard(gs); }
+    function paintZoom() { $('zoom').innerHTML = SPANS.map(function (z) { return '<button type="button" data-span="' + z[0] + '" class="' + (state.span === z[0] ? 'is-on' : '') + '">' + z[1] + '</button>'; }).join(''); }
+    $('zoom').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-span]'); if (!b) return;
+      state.span = +b.getAttribute('data-span'); try { localStorage.setItem('jtms.dispatch.span', state.span); } catch (err) {}
+      paintZoom(); render();
+    });
+    paintZoom();
+    var rsz = null; window.addEventListener('resize', function () { clearTimeout(rsz); rsz = setTimeout(function () { renderBoard(groups()); }, 150); });
+    $('prev').addEventListener('click', function () { go(-1); });
+    $('next').addEventListener('click', function () { go(1); });
+    $('today').addEventListener('click', function () { go(0); });
+    document.addEventListener('keydown', function (e) {
+      if (e.target.closest('input,select,textarea')) return;
+      if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'ArrowRight') go(1);
+      else if (e.key === 'Escape' && state.sel) { state.sel = null; paintSel(); renderSide(); renderDetail(); }
+    });
+    window.addEventListener('resize', updateNow);
+    window.addEventListener('storage', render);   // ордер изменили в другой вкладке или водитель в приложении
+    setInterval(function () { load(); renderHead(groups()); renderSide(); updateNow(); }, 60e3);
+
+    if (!store.list().length) store.addMany(JTMS.samples());
+    TM.migrate();
+    render();
+  })();
+  </script>
+</body>
+</html>

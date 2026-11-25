@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terminals &amp; ports — Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Страница «Порты». Палитра и шапка — в theme.css ---------- */
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 22px 24px 40px; }
+    .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 4px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; }
+    .head .count { color: var(--ink-2); font-size: 15px; }
+    .src { color: var(--ink-2); font-size: 13px; margin-bottom: 14px; max-width: 80ch; }
+    .src a { color: var(--blue); }
+    .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .search { position: relative; flex: 0 1 420px; min-width: 240px; }
+    .search input { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 9px; background: #fff; padding: 0 12px 0 36px; font-size: 14.5px; outline: none; }
+    .search input:focus, .sel:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .search svg { position: absolute; left: 11px; top: 11px; color: var(--ink-3); }
+    .sel { height: 38px; border: 1px solid var(--line); border-radius: 9px; background: #fff; padding: 0 12px; font-size: 14px; outline: none; }
+    .chip { height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); font-weight: 600; font-size: 14px; }
+    .chip.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .bar__right { margin-left: auto; color: var(--ink-2); font-size: 14px; }
+    .card2 { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
+    .scroll { overflow: auto; max-height: calc(100vh - 230px); }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; min-width: 860px; }
+    th { position: sticky; top: 0; background: #F8FAFD; text-align: left; font-weight: 500; font-size: 13px; color: var(--ink-2); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 9px 14px; border-bottom: 1px solid #EEF1F6; white-space: nowrap; }
+    tr:hover td { background: #F7F9FD; }
+    .code { font-family: var(--font-code); font-weight: 500; }
+    .en { color: var(--ink-2); font-size: 13px; }
+    .coords { font-variant-numeric: tabular-nums; }
+    .none { color: var(--ink-3); }
+    .main { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-size: 12px; font-weight: 600; }
+    .fn { display: flex; gap: 4px; }
+    .fn span { height: 22px; padding: 0 7px; border-radius: 4px; background: var(--harbour); color: var(--ink-2); font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; }
+    .map { color: var(--blue); font-weight: 600; text-decoration: none; font-size: 13px; }
+    .map:hover { text-decoration: underline; }
+    .cp { cursor: copy; border-radius: 4px; padding: 1px 3px; margin: -1px -3px; }
+    .cp:hover { background: var(--blue-soft); box-shadow: inset 0 -1.5px 0 var(--blue); }
+    .cp.is-copied { background: #DDF3E2; }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+    .tab { height: 40px; padding: 0 16px; border: 0; background: none; color: var(--ink-2); font-weight: 600; font-size: 15px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.is-on { color: var(--ink); border-bottom-color: var(--blue); }
+    .tab small { color: var(--ink-3); font-weight: 500; margin-left: 4px; }
+    .kd { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .kd--sea { background: var(--blue-soft); color: var(--blue); }
+    .kd--inland { background: var(--harbour); color: var(--ink-2); }
+    .approx { color: #9A5B00; font-size: 12px; font-weight: 600; margin-left: 6px; }
+    .op { color: var(--ink-2); white-space: normal; min-width: 160px; max-width: 240px; }
+    td.tn { white-space: normal; min-width: 260px; max-width: 380px; }
+    .more { padding: 14px; text-align: center; color: var(--ink-2); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top__in">
+    <a class="brand" href="orders.html" aria-label="Hyperion TMS — orders"><img class="brand__mark" src="assets/brand/hyperion-mark.png" alt=""><img class="brand__word" src="assets/brand/hyperion-wordmark.png" alt="Hyperion"></a>
+    <nav class="appnav"><a href="orders.html">Orders</a><a href="order-new.html">New order</a><a href="dispatch.html">Dispatch</a><a href="driver.html">Driver app</a><a href="ports.html" class="is-on">Terminals &amp; ports</a><a href="settings.html">Settings</a></nav>
+  </div></header>
+
+  <main class="wrap">
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab is-on" data-tab="term">Terminals <small id="n-term"></small></button>
+      <button type="button" class="tab" data-tab="port">Ports <small id="n-port"></small></button>
+    </div>
+    <p class="src" id="src"></p>
+    <div class="bar">
+      <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" aria-label="Search"></label>
+      <select class="sel" id="cc" aria-label="Country"></select>
+      <button type="button" class="chip" id="chipA"></button>
+      <button type="button" class="chip" id="chipB"></button>
+      <div class="bar__right" id="shown"></div>
+    </div>
+    <div class="card2"><div class="scroll"><table>
+      <thead id="thead"></thead>
+      <tbody id="rows"></tbody></table><div class="more" id="more"></div></div></div>
+  </main>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="assets/ports.js"></script>
+  <script src="assets/terminals.js"></script>
+  <script>
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var PORTS = JTMS.ports.all(), TERMS = JTMS.terminals.all(), LIMIT = 400;
+    var state = { tab: 'term', q: '', cc: '', a: false, b: false };
+    var FN = { 1: 'Port', 2: 'Rail', 3: 'Road', 4: 'Airport', 6: 'Multimodal', 7: 'Fixed', B: 'Border' };
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+    function cp(v, html) { return '<span class="cp" data-copy="' + esc(v) + '" title="Click to copy">' + (html || esc(v)) + '</span>'; }
+    function toast(m) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = m; $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, 2500); }
+    function map(lat, lon) { return lat != null ? '<a class="map" href="https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon + '#map=15/' + lat + '/' + lon + '" target="_blank" rel="noopener">Map</a>' : ''; }
+    $('n-term').textContent = TERMS.length; $('n-port').textContent = PORTS.length.toLocaleString('en-GB');
+
+    var TABS = {
+      term: {
+        list: TERMS, ph: 'Search terminal, berth or operator, e.g. 1742, ECT Delta, APM, Swissterminal',
+        src: 'Sea terminals come from the <a href="https://github.com/smdg-org/terminal-code-list" target="_blank" rel="noopener">SMDG Terminal Code List</a>, the code list shipping lines use in EDI. Inland terminals are not in SMDG and were added by hand: their coordinates are approximate and marked so. Type a terminal code, berth number or name into any location field of an order to use it.',
+        chipA: 'Sea', chipB: 'Inland',
+        head: '<tr><th>Code</th><th>Terminal</th><th>Operator</th><th>City</th><th>Country</th><th>Coordinates (lat, lon)</th><th>Type</th><th></th></tr>',
+        hay: function (t) { return t.code + ' ' + t.term + ' ' + t.name + ' ' + t.operator + ' ' + t.city + ' ' + t.address + ' ' + t.remarks; },
+        keep: function (t) { return (!state.a && !state.b) || (state.a && t.kind === 'sea') || (state.b && t.kind === 'inland'); },
+        sort: function (a, b) { return a.code < b.code ? -1 : 1; },
+        row: function (t) {
+          var c = t.lat != null ? t.lat.toFixed(5) + ', ' + t.lon.toFixed(5) : '';
+          return '<tr><td class="code">' + cp(t.code) + '</td><td class="tn">' + cp(t.name) + (t.address ? '<div class="en">' + cp(t.address) + '</div>' : '') + '</td>' +
+            '<td class="op">' + (t.operator ? cp(t.operator) : '') + '</td><td>' + esc(t.city) + '</td><td>' + t.cc + '</td>' +
+            '<td class="coords">' + (c ? cp(c) + (t.source !== 'SMDG' ? '<span class="approx" title="Added by hand, check on the map">approx.</span>' : '') : '<span class="none">not in source</span>') + '</td>' +
+            '<td><span class="kd kd--' + t.kind + '">' + (t.kind === 'sea' ? 'Sea' : 'Inland') + '</span></td><td>' + map(t.lat, t.lon) + '</td></tr>';
+        }
+      },
+      port: {
+        list: PORTS, ph: 'Search code or name, e.g. BEANR, Gdansk, Antwerp',
+        src: 'Sea and inland ports from UN/LOCODE (UNECE). Missing coordinates were filled from OpenStreetMap and Wikidata by the open <a href="https://github.com/cristan/improved-un-locodes" target="_blank" rel="noopener">improved-un-locodes</a> project. These are town-level points, not terminal gates.',
+        chipA: 'Key ports', chipB: 'With coordinates',
+        head: '<tr><th>UN/LOCODE</th><th>Name</th><th>Country</th><th>Coordinates (lat, lon)</th><th>Functions</th><th></th><th></th></tr>',
+        hay: function (p) { return p.code + ' ' + p.name + ' ' + p.en; },
+        keep: function (p) { return (!state.a || p.main) && (!state.b || p.lat != null); },
+        sort: function (a, b) { return (b.main - a.main) || (a.code < b.code ? -1 : 1); },
+        row: function (p) {
+          var c = p.lat != null ? p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) : '';
+          var fns = p.fn.replace(/-/g, '').split('').filter(function (f) { return FN[f]; }).map(function (f) { return '<span>' + FN[f] + '</span>'; }).join('');
+          return '<tr><td class="code">' + cp(p.code) + '</td><td>' + cp(p.name) + (p.en && p.name.toLowerCase().indexOf(p.en.toLowerCase()) < 0 ? ' <span class="en">(' + esc(p.en) + ')</span>' : '') + '</td><td>' + p.cc + '</td>' +
+            '<td class="coords">' + (c ? cp(c) : '<span class="none">not in source</span>') + '</td><td><div class="fn">' + fns + '</div></td>' +
+            '<td>' + (p.main ? '<span class="main" title="Major container port or key inland hub for our trucks">Key port</span>' : '') + '</td><td>' + map(p.lat, p.lon) + '</td></tr>';
+        }
+      }
+    };
+
+    function setTab(tab) {
+      var T = TABS[tab]; state = { tab: tab, q: '', cc: '', a: false, b: false };
+      document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-tab') === tab); });
+      $('src').innerHTML = T.src; $('q').value = ''; $('q').placeholder = T.ph; $('thead').innerHTML = T.head;
+      $('chipA').textContent = T.chipA; $('chipB').textContent = T.chipB; $('chipA').classList.remove('is-on'); $('chipB').classList.remove('is-on');
+      var ccs = {}; T.list.forEach(function (x) { ccs[x.cc] = (ccs[x.cc] || 0) + 1; });
+      $('cc').innerHTML = '<option value="">All countries</option>' + Object.keys(ccs).sort().map(function (c) { return '<option value="' + c + '">' + c + ' (' + ccs[c] + ')</option>'; }).join('');
+      try { history.replaceState(null, '', '#' + tab); } catch (e) {}
+      render();
+    }
+    function render() {
+      var T = TABS[state.tab], toks = norm(state.q).split(/\s+/).filter(Boolean);
+      var base = state.tab === 'term' && toks.length ? JTMS.terminals.search(state.q, 9999) : T.list;
+      var list = base.filter(function (x) {
+        if (state.cc && x.cc !== state.cc) return false;
+        if (!T.keep(x)) return false;
+        var h = norm(T.hay(x));
+        return toks.every(function (t) { return h.indexOf(t) >= 0; });
+      });
+      if (base === T.list) list.sort(T.sort);
+      $('rows').innerHTML = list.slice(0, LIMIT).map(T.row).join('');
+      $('shown').textContent = list.length.toLocaleString('en-GB') + ' found';
+      $('more').textContent = list.length > LIMIT ? 'Showing the first ' + LIMIT + '. Narrow the search or pick a country to see the rest.' : list.length ? '' : 'Nothing found. Try another spelling, the berth number or the operator.';
+    }
+    document.querySelectorAll('.tab').forEach(function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); }); });
+    $('chipA').addEventListener('click', function () { state.a = !state.a; this.classList.toggle('is-on', state.a); render(); });
+    $('chipB').addEventListener('click', function () { state.b = !state.b; this.classList.toggle('is-on', state.b); render(); });
+    $('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
+    $('cc').addEventListener('change', function (e) { state.cc = e.target.value; render(); });
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest('.cp'); if (!el) return;
+      var v = el.getAttribute('data-copy');
+      var ok = function () { el.classList.add('is-copied'); setTimeout(function () { el.classList.remove('is-copied'); }, 800); toast('Copied: ' + v); };
+      if (navigator.clipboard) navigator.clipboard.writeText(v).then(ok, function () { toast('Select the text and press Ctrl+C'); }); else toast('Select the text and press Ctrl+C');
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === '/' && !e.target.closest('input,select')) { e.preventDefault(); $('q').focus(); } });
+    setTab(location.hash === '#port' ? 'port' : 'term');
+  })();
+  </script>
+</body>
+</html>

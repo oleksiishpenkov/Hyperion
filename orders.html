@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <script id="driver-redirect">/* ссылка …#driver открывает сразу приложение водителя (для телефона) */ if (location.hash === '#driver') location.replace('driver.html');</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders — Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Страница «Ордера». Палитра и шапка — в theme.css ---------- */
+    .wrap { max-width: 1600px; margin: 0 auto; padding: 22px 24px 40px; }
+    .head { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+    .head .count { color: var(--ink-2); font-size: 14px; }
+
+    .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .search { position: relative; flex: 0 1 420px; min-width: 240px; }
+    .search input { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 9px; background: #fff; padding: 0 36px 0 36px; font-size: 14.5px; outline: none; }
+    .search input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .search svg { position: absolute; left: 11px; top: 11px; color: var(--ink-3); }
+    .search kbd { position: absolute; right: 9px; top: 9px; font: 500 12px var(--font-mono); color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+    .chip:hover { border-color: var(--ink-3); color: var(--ink); }
+    .chip.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .chip b { font: 600 12.5px var(--font-mono); opacity: .7; }
+    .bar__right { margin-left: auto; color: var(--ink-2); font-size: 14px; }
+
+    /* Таблица */
+    .card2 { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
+    .scroll { overflow: auto; max-height: calc(100vh - 210px); }
+    table.orders { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1280px; font-size: 14px; }
+    .orders th { position: sticky; top: 0; z-index: 2; background: #F8FAFD; text-align: left; font-weight: 500; font-size: 13px; color: var(--ink-2); padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; user-select: none; }
+    .orders th[data-sort] { cursor: pointer; }
+    .orders th[data-sort]:hover { color: var(--ink); }
+    .orders th .arr { color: var(--blue); margin-left: 4px; font-family: var(--font-mono); }
+    .orders .ck { width: 36px; padding-right: 0; } .orders .ck input { width: 17px; height: 17px; accent-color: var(--blue); cursor: pointer; }
+    .orders tr.is-chk td { background: #F4F8FF; }
+    .orders td { padding: 9px 12px; border-bottom: 1px solid #EEF1F6; vertical-align: middle; white-space: nowrap; }
+    .orders tbody tr { cursor: pointer; }
+    .orders tbody tr:hover td { background: #F7F9FD; }
+    .orders tbody tr.is-sel td { background: var(--blue-soft); }
+    .orders tbody tr.is-sel td:first-child { box-shadow: inset 3px 0 0 var(--blue); }
+    .orders tbody tr.is-new td { animation: newrow 2.4s ease-out; }
+    @keyframes newrow { 0%, 40% { background: #DCE8FF; } 100% { background: transparent; } }
+    @media (prefers-reduced-motion: reduce) { .orders tbody tr.is-new td { animation: none; background: var(--blue-soft); } }
+    .l1 { line-height: 1.35; }
+    .l2 { font-size: 13px; color: var(--ink-2); line-height: 1.35; margin-top: 2px; }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .fnr { font: 700 14px var(--font-mono); }
+    .cnt { font: 500 14px var(--font-code); letter-spacing: 0; }
+    .trk { font-weight: 600; }
+    .plate { font-family: var(--font-code); font-size: 12.5px; letter-spacing: .02em; }
+    .assign { height: 26px; padding: 0 10px; border: 1px dashed #9DBBFB; border-radius: 6px; color: var(--blue); font-weight: 600; font-size: 12.5px; background: #fff; }
+    .assign:hover { background: var(--blue-soft); }
+    .truck-sel { height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; width: 100%; }
+    .none { color: var(--ink-3); font-family: var(--font-ui); }
+    .days { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; flex-wrap: wrap; }
+    .days button { height: 34px; min-width: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: #fff; color: var(--ink); font-weight: 600; font-size: 14px; }
+    .days button:hover { border-color: var(--blue); color: var(--blue); }
+    .days button.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .days .dd { font-size: 17px; font-weight: 700; margin: 0 8px; min-width: 190px; }
+    .days .dn { font-size: 13px; color: var(--ink-2); }
+    /* время прибытия к клиенту */
+    .arr-t { display: flex; align-items: baseline; gap: 8px; }
+    .arr-t .tm { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink); }
+    .arr-t .dt { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--harbour); color: var(--ink); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+    .arr-t .dt.is-today { background: var(--navy); color: #fff; }
+    .arr-t .dt.is-tom { background: var(--blue-soft); color: var(--blue); }
+    .arr-t.is-past .tm { color: var(--signal); }
+    .lu { display: inline-block; font-size: 11px; font-weight: 800; padding: 0 5px; border-radius: 4px; margin-right: 4px; background: var(--ink); color: #fff; }
+    /* группы */
+    .grp-h td { background: #EEF2F8 !important; font-weight: 800; font-size: 13px; color: var(--ink); padding: 6px 12px !important; cursor: default; }
+    .grp-h td span { font-weight: 600; color: var(--ink-2); margin-left: 6px; }
+    .gtag { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: 6px; background: var(--blue-soft); color: var(--blue); font-weight: 800; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    /* перетаскивание колонок */
+    .orders th[draggable="true"] { cursor: grab; }
+    .orders th.is-dragging { opacity: .45; }
+    .orders th.drop-l { box-shadow: inset 3px 0 0 var(--blue); }
+    .orders th.drop-r { box-shadow: inset -3px 0 0 var(--blue); }
+    .route { display: flex; align-items: center; gap: 5px; font: 600 13.5px var(--font-mono); white-space: nowrap; }
+    .route i { width: 14px; height: 2px; border-radius: 1px; background: linear-gradient(90deg, var(--blue), var(--cyan)); font-style: normal; flex: none; }
+    .route .stop { color: var(--blue); }
+    .dead { font: 600 13.5px var(--font-mono); }
+    .dead.is-soon { color: var(--signal); }
+    .dead.is-past { color: var(--neg); }
+    .tags { display: flex; gap: 4px; flex-wrap: nowrap; }
+    .tag { height: 20px; padding: 0 6px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; background: var(--harbour); color: var(--ink-2); }
+    .tag--rf { background: #E6F7FD; color: #00739E; }
+    .tag--adr { background: #FFF1E8; color: #B4400A; }
+    .st { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+    .st::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .st--new { background: var(--blue-soft); color: var(--blue); }
+    .st--planned { background: #EEF0FF; color: #4338CA; }
+    .st--in_progress { background: #E6F7FD; color: #00739E; }
+    .st--done { background: #EAF7EC; color: #237A2E; }
+    .st--cancelled { background: #F1F3F7; color: #6B7488; text-decoration: line-through; }
+
+    /* Копирование значений: наведите — подсветка, клик — в буфер */
+    .cp { cursor: copy; border-radius: 4px; padding: 1px 3px; margin: -1px -3px; transition: background .12s; }
+    .cp:hover { background: var(--blue-soft); box-shadow: inset 0 -1.5px 0 var(--blue); }
+    .cp.is-copied { background: #DDF3E2 !important; box-shadow: inset 0 -1.5px 0 #2E9A4A !important; }
+    .cp:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+    @media (prefers-reduced-motion: reduce) { .cp { transition: none; } }
+    .route .cp { padding: 1px 2px; margin: -1px -2px; }
+    .empty { padding: 64px 24px; text-align: center; color: var(--ink-2); }
+    .empty h2 { color: var(--ink); font-size: 17px; margin-bottom: 6px; }
+    .empty .acts { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+
+    /* Карточка ордера справа */
+    .drawer { position: fixed; top: 56px; right: 0; bottom: 0; width: min(460px, 100vw); background: #fff; border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(14, 27, 61, .10);
+      transform: translateX(104%); transition: transform .2s ease; z-index: 25; display: flex; flex-direction: column; }
+    .drawer.is-open { transform: none; }
+    @media (min-width: 1100px) { body.has-drawer .wrap { padding-right: 484px; } }
+    @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+    .dr__head { padding: 18px 20px 14px; background: linear-gradient(135deg, #081640 0%, #0B2A80 70%, #0A47C9 100%); color: #fff; }
+    .dr__row { display: flex; align-items: center; gap: 10px; }
+    .dr__fnr { font: 700 18px var(--font-mono); }
+    .dr__x { margin-left: auto; width: 32px; height: 32px; border-radius: 8px; color: #CBD8F5; display: grid; place-items: center; }
+    .dr__x:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .dr__sub { color: #CBD8F5; font-size: 14px; margin-top: 4px; }
+    .dr__cnt { font: 500 17px var(--font-code); letter-spacing: .04em; margin-top: 12px; }
+    .dr__body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 18px; }
+    .dr__body h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .kv { display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; font-size: 14px; }
+    .kv dt { color: var(--ink-2); }
+    .kv dd { min-width: 0; overflow-wrap: anywhere; }
+    .tl { list-style: none; }
+    .tl li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; position: relative; padding-bottom: 14px; }
+    .tl li:last-child { padding-bottom: 0; }
+    .tl li::before { content: ''; position: absolute; left: 7px; top: 15px; bottom: -1px; width: 2px; background: #BCD0FB; }
+    .tl li:last-child::before { display: none; }
+    .tl .d { width: 12px; height: 12px; margin-top: 3px; border-radius: 50%; border: 2.5px solid var(--blue); background: #fff; position: relative; z-index: 1; }
+    .tl li:first-child .d { border-color: var(--navy); }
+    .tl li:last-child .d { background: var(--cyan); border-color: var(--cyan); }
+    .tl .c { font: 600 14px var(--font-mono); }
+    .tl .n { font-size: 14px; }
+    .tl .s { font-size: 13px; color: var(--ink-2); }
+    .legs { font-size: 13.5px; display: flex; flex-direction: column; gap: 4px; }
+    .legs div { display: flex; justify-content: space-between; gap: 8px; }
+    .dr__foot { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .dr__foot .btn { height: 36px; border-radius: 8px; }
+    .btn--danger { color: var(--neg); border-color: #F3CFCF; }
+    .btn--danger:hover:not(:disabled) { background: var(--neg-bg); }
+    .confirm { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--neg); }
+    .status-sel { height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; margin-left: auto; }
+
+    /* Выдача водителю */
+    .snd { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .snd--none { background: #fff; color: var(--ink-2); border: 1px dashed #A9B4C6; }
+    .snd--sent { background: var(--blue-soft); color: var(--blue); }
+    .snd--ack { background: #E7F6EC; color: var(--pos); }
+    .snd--changed { background: var(--signal-soft); color: #8A3207; }
+    .snd--unplanned { background: var(--harbour); color: var(--ink-3); }
+    .trk-s { margin-top: 3px; display: flex; gap: 6px; align-items: center; }
+    .sendone { height: 21px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-size: 12px; font-weight: 700; }
+    .sendone:hover { background: var(--blue); color: #fff; }
+    #send-all { height: 34px; }
+    .drv { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+    .drv .dh { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; color: var(--ink-2); }
+    .drv .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .drv label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
+    .drv input, .drv textarea { height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; font-weight: 400; }
+    .drv textarea { height: 56px; padding: 8px 10px; resize: vertical; }
+    .drv input:focus, .drv textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .drv .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .drv .acts .btn { height: 34px; border-radius: 8px; }
+    .drv a { color: var(--blue); font-weight: 600; font-size: 13px; }
+    /* Вкладки карточки */
+    .dtabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--line); background: #fff; }
+    .dtabs button { height: 42px; padding: 0 12px; border: 0; background: none; font-weight: 600; font-size: 14px; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .dtabs button.is-on { color: var(--ink); border-bottom-color: var(--blue); }
+    .dtabs b { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--harbour); color: var(--ink-2); font-size: 12px; margin-left: 4px; }
+    .dtabs button.is-on b { background: var(--blue); color: #fff; }
+    /* Вложения */
+    .up { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .up select { height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; font-size: 14px; }
+    .up label.btn { height: 36px; display: inline-flex; align-items: center; cursor: pointer; border-radius: 8px; }
+    .fchips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .fchips button { height: 28px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); font-weight: 600; font-size: 13px; }
+    .fchips button.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .fgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .fcard { display: block; text-align: left; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; padding: 0; font: inherit; color: var(--ink); }
+    .fcard:hover { box-shadow: var(--shadow-pop); }
+    .fcard .im { position: relative; aspect-ratio: 4 / 3; background: var(--harbour); }
+    .fcard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ftype { position: absolute; top: 8px; left: 8px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; letter-spacing: .02em; }
+    .ftype--CMR { background: var(--navy); color: #fff; } .ftype--CHECKLIST { background: var(--signal); color: #fff; } .ftype--PIC { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .fcard .cap { padding: 8px 10px; }
+    .fcard .fn { font-family: var(--font-code); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fcard .fm { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+    .fempty { border: 1px dashed var(--line); border-radius: 10px; padding: 22px 16px; text-align: center; color: var(--ink-2); font-size: 14px; }
+    /* Просмотр файла */
+    .lb { position: fixed; inset: 0; z-index: 60; background: rgba(6, 14, 40, .92); display: flex; flex-direction: column; }
+    .lb .im { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .lb img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; background: #fff; }
+    .lb .bar2 { background: #fff; padding: 12px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .lb .bar2 .ftype { position: static; }
+    .lb .meta { font-size: 13.5px; color: var(--ink-2); }
+    .lb .meta b { font-family: var(--font-code); color: var(--ink); font-size: 13px; font-weight: 600; display: block; }
+    .lb .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .lb .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .14); color: #fff; font-size: 28px; }
+    .lb .nav:hover { background: rgba(255, 255, 255, .26); }
+    .lb .prev { left: 14px; } .lb .next { right: 14px; }
+
+    @media (max-width: 760px) { .wrap { padding: 16px; } .search { flex-basis: 100%; } .bar__right { margin-left: 0; } }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top__in">
+    <a class="brand" href="orders.html" aria-label="Hyperion TMS — orders"><img class="brand__mark" src="assets/brand/hyperion-mark.png" alt=""><img class="brand__word" src="assets/brand/hyperion-wordmark.png" alt="Hyperion"></a>
+    <nav class="appnav"><a href="orders.html" class="is-on">Orders</a><a href="order-new.html">New order</a><a href="dispatch.html">Dispatch</a><a href="driver.html">Driver app</a><a href="ports.html">Terminals &amp; ports</a><a href="settings.html">Settings</a></nav>
+    <div class="top__right"><a class="btn btn--brand" href="order-new.html" title="New order (N)">+ New order</a></div>
+  </div></header>
+
+  <main class="wrap">
+    <div class="head"><h1>Orders</h1><span class="count" id="count"></span></div>
+    <div class="days" id="days"></div>
+    <div class="bar">
+      <label class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search booking, container, customer, place…" aria-label="Search orders"><kbd>/</kbd>
+      </label>
+      <div class="chips" id="chips" role="group" aria-label="Filter orders"></div>
+      <div class="bar__right"><span id="shown"></span> <button type="button" class="btn btn--brand" id="send-all" hidden></button></div>
+    </div>
+    <div class="card2"><div class="scroll"><table class="orders" id="tbl"><thead></thead><tbody></tbody></table></div></div>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-label="Order details"></aside>
+  <div id="lb"></div>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="assets/ports.js"></script>
+  <script src="assets/terminals.js"></script>
+  <script src="assets/ref.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/samples.js"></script>
+  <script src="assets/routing.js"></script>
+  <script src="assets/geo.js"></script>
+  <script src="assets/timing.js"></script>
+  <script src="assets/link.js"></script>
+  <script>
+  (function () {
+    var ref = JTMS.ref, iso = JTMS.iso6346, $ = function (id) { return document.getElementById(id); };
+    var state = { day: savedDay(), q: '', filter: 'open', sort: { k: 'created', d: -1 }, sel: null, confirm: false, flashId: null, checked: {}, tab: 'details', ftype: 'all', lb: null, fdel: false };
+    var SEND = JTMS.send, FILES = JTMS.files, TM = JTMS.timing;
+
+    var STATUS = { new: 'New', planned: 'Planned', in_progress: 'In progress', done: 'Done', cancelled: 'Cancelled' };
+    var STOP = { LADEN: 'Loading', LOSSEN: 'Unloading', STOP: 'Stop' };
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function fmtD(d, h) { if (!d) return ''; var p = d.split('-'); return p[2] + '.' + p[1] + (h ? ' ' + h : ''); }
+    function fmtTs(iso8601) { var d = new Date(iso8601); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+    // Значение, которое копируется по клику
+    function cp(val, html, cls) {
+      if (val == null || val === '') return html || '';
+      return '<span class="cp' + (cls ? ' ' + cls : '') + '" data-copy="' + esc(val) + '" tabindex="0" title="Click to copy">' + (html != null ? html : esc(val)) + '</span>';
+    }
+    function copyText(text, el, label) {
+      function done() { toast(label || 'Copied: ' + (text.length > 60 ? text.slice(0, 57) + '…' : text)); if (el) { el.classList.add('is-copied'); setTimeout(function () { el.classList.remove('is-copied'); }, 900); } }
+      function fallback() {
+        var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { toast('Copy is blocked by the browser — select the text and press Ctrl+C'); }
+        ta.remove();
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+    }
+    function toast(msg) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, 3500); }
+
+    // ---------- Признаки ордера ----------
+    function kind(code) { var l = ref.location(code); return l ? l.kind : ''; }
+    function dir(o) { return ref.isPortLike(kind(o.pickup && o.pickup.code)) ? 'in' : ref.isPortLike(kind(o.deliver && o.deliver.code)) ? 'out' : ''; }
+    function isReefer(o) { var t = ref.ctype(o.ct && o.ct.type); return !!(t && t.reefer) || (o.ct && o.ct.group === 'GENSET') || (o.f && o.f.genset); }
+    function closingTs(o) { return o.deliver && o.deliver.closing_date ? new Date(o.deliver.closing_date + 'T' + (o.deliver.closing_time || '23:59')).getTime() : null; }
+    function firstStop(o) { return (o.stops || [])[0] || null; }
+    function stopTs(o) { var s = firstStop(o); return s && s.date ? new Date(s.date + 'T' + (s.hour || '00:00')).getTime() : null; }
+    function isOpen(o) { return o.status !== 'done' && o.status !== 'cancelled'; }
+
+    var FILTERS = [
+      ['open', 'Open', isOpen],
+      ['all', 'All', function () { return true; }],
+      ['in', 'Inbound', function (o) { return dir(o) === 'in'; }],
+      ['out', 'Outbound', function (o) { return dir(o) === 'out'; }],
+      ['soon', 'Closing ≤ 24 h', function (o) { var c = closingTs(o); return isOpen(o) && c && c - Date.now() < 864e5; }],
+      ['nocnt', 'No container no.', function (o) { return isOpen(o) && !o.container_no; }],
+      ['unsent', 'Not sent to driver', function (o) { var x = SEND.ofOrder(o); return isOpen(o) && (x === 'none' || x === 'changed'); }],
+      ['reefer', 'Reefer', isReefer],
+      ['adr', 'ADR', function (o) { return o.f && o.f.adr; }],
+    ];
+    var SORT = {
+      file: function (o) { return +o.file_nr; }, customer: function (o) { return (o.customer || '').toLowerCase(); },
+      container: function (o) { return o.container_no || 'zzz'; }, truck: function (o) { return o.truck || 'zzz'; }, stop: function (o) { return stopTs(o) || 9e15; },
+      closing: function (o) { return closingTs(o) || 9e15; }, line: function (o) { return o.shipping_line || ''; },
+      status: function (o) { return Object.keys(STATUS).indexOf(o.status); }, created: function (o) { return o.created_at; },
+      group: function (o) { return o.pgroup || 'zzz'; },
+    };
+
+    function hay(o) {
+      var trk = ref.truck(truckOf(o));
+      var parts = [o.file_nr, o.booking, o.truck, trk && trk.plate, trk && trk.plate.replace(/\s/g, ''), o.customer, o.client_ref, o.container_no, o.container_no && iso.format(o.container_no), o.shipping_line, o.combi_id,
+        o.pickup && o.pickup.code, o.pickup && o.pickup.city, o.pickup && o.pickup.ref, o.deliver && o.deliver.code, o.deliver && o.deliver.city, o.deliver && o.deliver.ref,
+        o.deliver && o.deliver.vessel, o.deliver && o.deliver.destination, STATUS[o.status]];
+      (o.stops || []).forEach(function (s) { parts.push(s.code, s.name, s.place, s.reference); });
+      return parts.filter(Boolean).join(' ').toLowerCase();
+    }
+    // День ордера: дата первой погрузки/выгрузки, иначе closing, иначе дата создания
+    function ymdL(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function dayOf(o) { var st = firstStop(o); return (st && st.date) || (o.deliver && o.deliver.closing_date) || (o.created_at ? ymdL(new Date(o.created_at)) : ''); }
+    function savedDay() { try { var v = sessionStorage.getItem('jtms.orders.day'); if (v != null) return v; } catch (e) {} return ymdL(new Date()); }
+    function shiftDay(d, n) { var x = new Date(d + 'T12:00'); x.setDate(x.getDate() + n); return ymdL(x); }
+    function renderDays(all) {
+      var t = ymdL(new Date()), d = state.day, n = d ? all.filter(function (o) { return dayOf(o) === d; }).length : all.length;
+      var label = d ? new Date(d + 'T12:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'All days';
+      $('days').innerHTML = '<button type="button" data-day="-1" aria-label="Previous day"' + (d ? '' : ' disabled') + '>‹</button>' +
+        '<button type="button" data-day="today" class="' + (d === t ? 'is-on' : '') + '">Today</button>' +
+        '<button type="button" data-day="+1" aria-label="Next day"' + (d ? '' : ' disabled') + '>›</button>' +
+        '<span class="dd">' + esc(label) + (d === t ? ' · today' : d === shiftDay(t, 1) ? ' · tomorrow' : '') + '</span><span class="dn">' + n + ' order' + (n === 1 ? '' : 's') + '</span>' +
+        '<button type="button" data-day="all" class="' + (d ? '' : 'is-on') + '" style="margin-left:auto">All days</button>';
+    }
+    function visible(all) {
+      var f = FILTERS.find(function (x) { return x[0] === state.filter; })[2], toks = state.q.toLowerCase().split(/\s+/).filter(Boolean), k = SORT[state.sort.k], d = state.sort.d;
+      return all.filter(function (o) { var h = hay(o); return f(o) && (!state.day || dayOf(o) === state.day) && toks.every(function (t) { return h.indexOf(t) >= 0; }); })
+        .sort(function (a, b) { var A = k(a), B = k(b); return (A > B ? 1 : A < B ? -1 : 0) * d || (+b.file_nr - +a.file_nr); });
+    }
+
+    // ---------- Таблица ----------
+    // Колонки: id → [сортировка, заголовок]. Порядок меняется перетаскиванием заголовков и запоминается.
+    var COLDEF = { group: ['group', 'Group'], customer: ['customer', 'Customer, booking'], container: ['container', 'Container'], truck: ['truck', 'Truck'], route: [null, 'Route'],
+      stop: ['stop', 'Arrive at client'], closing: ['closing', 'Closing'], line: ['line', 'Line'], handling: [null, 'Handling'], status: ['status', 'Status, created'] };
+    var COL_DEFAULT = ['group', 'customer', 'container', 'truck', 'route', 'stop', 'closing', 'line', 'handling', 'status'];
+    var COLS = (function () {
+      try { var v = JSON.parse(localStorage.getItem('jtms.orders.cols') || 'null'); if (v && v.length) { v = v.filter(function (k) { return COLDEF[k]; }); COL_DEFAULT.forEach(function (k) { if (v.indexOf(k) < 0) v.push(k); }); return v; } } catch (e) {}
+      return COL_DEFAULT.slice();
+    })();
+    function saveCols() { try { localStorage.setItem('jtms.orders.cols', JSON.stringify(COLS)); } catch (e) {} }
+    // ЗАГЛАВНЫЕ из BPA → обычный вид; короткие слова (DSV, ECT, S11) оставляем как есть
+    function niceCase(x) { x = String(x || ''); return x === x.toUpperCase() ? x.replace(/[^\s\-+\/]+/g, function (w) { return w.length <= 3 ? w : w.charAt(0) + w.slice(1).toLowerCase(); }) : x; }
+    // Короткое имя порта/терминала: номер причала (1742, 913) или название (ECT Delta); депо — название
+    function portName(pt) {
+      if (!pt) return '';
+      var l = ref.location(pt.code), nm = (l && l.name) || pt.name || pt.code || '';
+      var m = /^(\d{3,4})\b/.exec(nm);
+      return m ? m[1] : niceCase(nm);
+    }
+    function arriveCell(o, s, more) {
+      if (!s) return '<span class="none">—</span>';
+      var t = ymdL(new Date()), ts = s.date ? new Date(s.date + 'T' + (s.hour || '00:00')) : null;
+      var dcls = s.date === t ? ' is-today' : s.date === shiftDay(t, 1) ? ' is-tom' : '';
+      var dtxt = s.date ? (s.date === t ? 'Today ' : s.date === shiftDay(t, 1) ? 'Tomorrow ' : new Date(s.date + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short' }) + ' ') + fmtD(s.date) : 'no date';
+      var past = ts && isOpen(o) && ts < Date.now() && o.status === 'new';
+      return '<div class="arr-t' + (past ? ' is-past' : '') + '"><span class="tm">' + cp(s.hour || '--:--', esc((s.hour || '--:--') + (s.until ? '–' + s.until : ''))) + '</span><span class="dt' + dcls + '">' + esc(dtxt) + '</span></div>' +
+        '<div class="l2"><span class="lu">' + (s.type === 'LADEN' ? 'L' : s.type === 'LOSSEN' ? 'U' : 'S') + '</span>' + STOP[s.type] + ', ' + cp(niceCase(s.place || s.code)) + (more > 0 ? ' +' + more : '') + (s.reference ? ', ref ' + cp(s.reference) : '') + '</div>';
+    }
+    function cell(o) {
+      var t = ref.ctype(o.ct && o.ct.type), s = firstStop(o), more = (o.stops || []).length - 1, c = closingTs(o), now = Date.now();
+      // сверху: порт — город погрузки/выгрузки — порт; снизу: город — клиент — город
+      var stops = o.stops || [];
+      var top = [portName(o.pickup)].concat(stops.map(function (x) { return niceCase(x.place || (ref.location(x.code) || {}).city || x.code || ''); }), [portName(o.deliver)]);
+      var bottom = [niceCase((o.pickup && o.pickup.city) || '')].concat(stops.map(function (x) { var l = ref.location(x.code); return niceCase(x.name || (l && l.name) || x.code || ''); }), [niceCase((o.deliver && o.deliver.city) || '')]);
+      var route = '<div class="route">' + top.map(function (c, i) {
+          return cp(c, esc(c || '—'), i > 0 && i < top.length - 1 ? 'stop' : '');
+        }).join('<i></i>') + '</div><div class="l2">' + bottom.map(function (c) { return cp(c, esc(c || '—')); }).join(' — ') + '</div>';
+      var tags = [];
+      if (isReefer(o)) tags.push('<span class="tag tag--rf">' + (o.rf && o.rf.temp != null ? 'RF ' + o.rf.temp + ' °C' : 'Reefer') + '</span>');
+      if (o.f && o.f.genset) tags.push('<span class="tag">Genset</span>');
+      if (o.f && o.f.adr) tags.push('<span class="tag tag--adr">ADR</span>');
+      if (o.f && o.f.gdp) tags.push('<span class="tag">GDP</span>');
+      if (o.f && o.f.high_value) tags.push('<span class="tag">High value</span>');
+      var d = dir(o), cnt = o.container_no ? iso.format(o.container_no) : '';
+      var TD = {
+        group: function () { return '<td>' + (o.pgroup ? '<span class="gtag">' + esc(o.pgroup) + '</span>' : '<span class="none">—</span>') + '</td>'; },
+        customer: function () { return '<td><div class="l1">' + cp(o.customer) + '</div><div class="l2 mono">' + cp(o.booking) + '</div></td>'; },
+        container: function () { return '<td><div class="cnt' + (cnt ? '' : ' none') + '">' + (cnt ? cp(cnt) : 'not set') + '</div><div class="l2">' + (t ? esc(t.label.split(' · ')[1]) : '') + '</div></td>'; },
+        truck: function () { return '<td>' + truckCell(o) + '</td>'; },
+        route: function () { return '<td>' + route + '</td>'; },
+        stop: function () { return '<td>' + arriveCell(o, s, more) + '</td>'; },
+        closing: function () { return '<td>' + (c ? '<div class="dead' + (c < now ? ' is-past' : c - now < 864e5 ? ' is-soon' : '') + '">' + cp(fmtD(o.deliver.closing_date, o.deliver.closing_time)) + '</div><div class="l2">' + cp(o.deliver.vessel) + '</div>' : '<span class="none">—</span>') + '</td>'; },
+        line: function () { return '<td>' + cp(o.shipping_line) + '</td>'; },
+        handling: function () { return '<td><div class="tags">' + (tags.join('') || '<span class="none">—</span>') + '</div></td>'; },
+        status: function () { return '<td><span class="st st--' + o.status + '">' + STATUS[o.status] + '</span><div class="l2">' + (d === 'in' ? 'Inbound' : d === 'out' ? 'Outbound' : '—') + ', ' + fmtTs(o.created_at) + '</div></td>'; }
+      };
+      return '<tr data-id="' + o.id + '" class="' + (state.sel === o.id ? 'is-sel' : '') + (state.flashId === o.id ? ' is-new' : '') + (state.checked[o.id] ? ' is-chk' : '') + '">' +
+        '<td class="ck"><input type="checkbox" data-chk="' + o.id + '"' + (state.checked[o.id] ? ' checked' : '') + ' aria-label="Select order ' + esc(o.file_nr) + '"></td>' +
+        COLS.map(function (k) { return TD[k](); }).join('') + '</tr>';
+    }
+    function truckOf(o) {   // машина ордера, а если её не указали — машина из плана диспетчера
+      if (o.truck) return o.truck;
+      var l = (o.legs && o.legs.length ? o.legs : JTMS.store.buildLegs(o)).find(function (x) { return x.truck; });
+      return l ? l.truck : '';
+    }
+    function truckCell(o) {
+      var t = ref.truck(truckOf(o));
+      var ss = isOpen(o) ? SEND.ofOrder(o) : '';
+      var chip = ss ? '<div class="trk-s"><span class="snd snd--' + ss + '" title="' + SEND.TIP[ss] + '">' + (ss === 'ack' ? '✓✓ ' : ss === 'sent' ? '✓ ' : '') + SEND.TXT[ss] + '</span>' +
+        (ss === 'none' || ss === 'changed' ? '<button type="button" class="sendone" data-sendone="' + o.id + '" title="Send this order to the driver\'s phone">' + (ss === 'changed' ? 'Resend' : 'Send') + '</button>' : '') + '</div>' : '';
+      return t ? '<div class="trk">' + cp(t.fleet) + '</div><div class="l2 plate">' + cp(t.plate) + '</div>' + chip
+               : '<button type="button" class="assign" data-assign="' + o.id + '">Assign</button>';
+    }
+    function render() {
+      var all = JTMS.store.list(), rows = visible(all);
+      $('count').textContent = all.length ? all.length + (all.length === 1 ? ' order' : ' orders') : '';
+      var inDay = state.day ? all.filter(function (o) { return dayOf(o) === state.day; }) : all;   // счётчики — за выбранный день
+      $('chips').innerHTML = FILTERS.map(function (f) {
+        var n = inDay.filter(f[2]).length;
+        return '<button type="button" class="chip' + (state.filter === f[0] ? ' is-on' : '') + '" data-f="' + f[0] + '">' + f[1] + ' <b>' + n + '</b></button>';
+      }).join('');
+      var allChk = rows.length && rows.every(function (o) { return state.checked[o.id]; });
+      renderDays(all);
+      $('tbl').tHead.innerHTML = '<tr><th class="ck"><input type="checkbox" id="chk-all"' + (allChk ? ' checked' : '') + ' aria-label="Select all shown orders"></th>' + COLS.map(function (k) {
+        var c = COLDEF[k];
+        return '<th draggable="true" data-col="' + k + '"' + (c[0] ? ' data-sort="' + c[0] + '"' : '') + ' title="Click to sort, drag to move the column">' + c[1] + (state.sort.k === c[0] ? '<span class="arr">' + (state.sort.d > 0 ? '↑' : '↓') + '</span>' : '') + '</th>';
+      }).join('') + '</tr>';
+      $('shown').textContent = all.length && rows.length !== all.length ? 'Showing ' + rows.length + ' of ' + all.length : '';
+      sendBtn();
+      if (!all.length) {
+        $('tbl').tBodies[0].innerHTML = '<tr><td colspan="11" style="cursor:default"><div class="empty"><h2>No orders yet</h2>Create the first booking, or load a few sample orders to try the list.' +
+          '<div class="acts"><a class="btn btn--brand" href="order-new.html">+ New order</a><button type="button" class="btn" id="load-samples">Load sample orders</button></div></div></td></tr>';
+      } else if (!rows.length) {
+        $('tbl').tBodies[0].innerHTML = '<tr><td colspan="11" style="cursor:default"><div class="empty"><h2>Nothing matches</h2>Change the day, the search or the filter.</div></td></tr>';
+      } else {
+        if (state.sort.k === 'group') {   // по группам: заголовок над каждой группой
+          var html = '', cur = null;
+          rows.forEach(function (o) {
+            var g = o.pgroup || '';
+            if (g !== cur) { cur = g; var n = rows.filter(function (x) { return (x.pgroup || '') === g; }).length; html += '<tr class="grp-h"><td colspan="' + (COLS.length + 1) + '">' + (g || 'No group') + '<span>' + n + ' order' + (n === 1 ? '' : 's') + '</span></td></tr>'; }
+            html += cell(o);
+          });
+          $('tbl').tBodies[0].innerHTML = html;
+        } else $('tbl').tBodies[0].innerHTML = rows.map(cell).join('');
+      }
+    }
+
+    // Кнопка «Отправить»: только отмеченные флажком ордера, а если флажков нет — открытый ордер
+    function picked() {
+      var ids = Object.keys(state.checked).filter(function (id) { return state.checked[id] && JTMS.store.get(id); });
+      if (!ids.length && state.sel) ids = [state.sel];
+      return ids.map(function (id) { return JTMS.store.get(id); }).filter(Boolean);
+    }
+    function sendBtn() {
+      var pk = picked(), ok = pk.filter(function (o) { var x = SEND.ofOrder(o); return isOpen(o) && (x === 'none' || x === 'changed'); });
+      var b = $('send-all'); b.hidden = !ok.length;
+      var f1 = ok.length === 1 && JTMS.store.buildLegs(ok[0]).find(function (l) { return l.truck && l.status !== 'done'; }), tk1 = f1 && ref.truck(f1.truck);
+      b.textContent = ok.length === 1 ? 'Send to ' + (tk1 ? (tk1.driver || tk1.fleet) : 'driver') : 'Send ' + ok.length + ' selected to drivers';
+      b.title = ok.length === 1 ? 'Send order ' + ok[0].file_nr + ' (' + ok[0].customer + ') to the driver\'s phone' : 'Send the selected orders to the drivers\' phones';
+    }
+    function unsent(all) { return all.filter(function (o) { var x = SEND.ofOrder(o); return isOpen(o) && (x === 'none' || x === 'changed'); }); }
+
+    // ---------- Блок «телефон водителя» в карточке ----------
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function local(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+    function suggest(o) {   // начало забора: к слоту первой остановки, иначе ближайшие 30 минут
+      var ls = TM.legs(o).filter(function (l) { return l.status !== 'done'; }), f = ls[0];
+      var t = f && f.win ? +f.win - (f.preH + f.driveH) * 3600e3 : Date.now() + 30 * 60e3;
+      t = Math.max(t, Date.now()); var d = new Date(t); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+      return local(d);
+    }
+    function driverBox(o) {
+      if (!isOpen(o)) return '';
+      var ss = SEND.ofOrder(o), tk = ref.truck(truckOf(o)), ls = TM.legs(o).filter(function (l) { return l.status !== 'done'; });
+      var who = tk ? tk.fleet + (tk.driver ? ' · ' + tk.driver : '') : '';
+      var note = '<label>Note for the driver<textarea id="snd-note" placeholder="Gate 4, ask for Marc, bring a seal…">' + esc(SEND.note(o)) + '</textarea></label>';
+      if (ss === 'unplanned') {
+        if (!tk) return '<section><h3>Driver\'s phone</h3><div class="drv"><div class="dh"><span class="snd snd--unplanned">Not planned</span>Choose a truck above, then plan and send the job to the driver.</div></div></section>';
+        var sg = suggest(o);
+        return '<section><h3>Driver\'s phone</h3><div class="drv"><div class="dh"><span class="snd snd--unplanned">Not planned</span>Plan the job on ' + esc(who) + ' and send it to the phone.</div>' +
+          '<div class="row2"><label>Pick-up date<input type="date" id="snd-date" value="' + sg.slice(0, 10) + '"></label><label>Pick-up time<input type="time" id="snd-time" step="900" value="' + sg.slice(11) + '"></label></div>' + note +
+          '<div class="acts"><button type="button" class="btn btn--brand" id="snd-plan">Plan and send to ' + esc(tk.driver || tk.fleet) + '</button><a href="dispatch.html">Open Dispatch</a></div></div></section>';
+      }
+      var pl = ls.filter(function (l) { return l.truck && l.s; }), first = pl[0];
+      var sent = pl.map(function (l) { return l.sent; }).filter(Boolean).sort().pop(), ack = pl.map(function (l) { return l.ack; }).filter(Boolean).sort().pop();
+      var txt = ss === 'none' ? 'Not on the phone yet' : ss === 'changed' ? 'Changed after sending: the phone shows the old version' : ss === 'ack' ? 'Accepted ' + fmtTs(ack) : 'Sent ' + fmtTs(sent) + ', waiting for the driver';
+      var trucks = pl.map(function (l) { return l.truck; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
+      return '<section><h3>Driver\'s phone</h3><div class="drv"><div class="dh"><span class="snd snd--' + ss + '">' + (ss === 'ack' ? '✓✓ ' : ss === 'sent' ? '✓ ' : '') + SEND.TXT[ss] + '</span>' + esc(txt) + '</div>' +
+        (first ? '<div class="dh">Pick-up ' + fmtTs(first.s.toISOString()) + ' · ' + esc(trucks) + (pl.length < ls.length ? ' · part of the job is not planned yet' : '') + '</div>' : '') + note +
+        '<div class="acts"><button type="button" class="btn btn--brand" id="snd-send">' + (ss === 'none' ? 'Send to driver' : ss === 'changed' ? 'Send update' : 'Send again with note') + '</button>' +
+        (ss !== 'none' ? '<button type="button" class="btn" id="snd-recall">Take back from phone</button>' : '') + '<a href="dispatch.html">Open Dispatch</a></div></div></section>';
+    }
+
+    // ---------- Вложения ----------
+    function fileMeta(f) { return [fmtTs(f.t), FILES.who(f)].filter(Boolean).join(' · '); }
+    function filesTab(o) {
+      var all = FILES.list(o), cnt = { all: all.length };
+      all.forEach(function (f) { cnt[f.type] = (cnt[f.type] || 0) + 1; });
+      var shown = state.ftype === 'all' ? all : all.filter(function (f) { return f.type === state.ftype; });
+      return '<section><h3>Add a file</h3><div class="up"><select id="up-type" aria-label="File type">' + Object.keys(FILES.TYPES).map(function (k) { return '<option value="' + k + '">' + k + '</option>'; }).join('') + '</select>' +
+          '<label class="btn">Upload image<input type="file" id="up-file" accept="image/*" multiple hidden></label></div></section>' +
+        '<section><div class="fchips">' + [['all', 'All'], ['CMR', 'CMR'], ['CHECKLIST', 'Checklist'], ['PIC', 'Pictures']].map(function (c) {
+          return '<button type="button" data-ftype="' + c[0] + '" class="' + (state.ftype === c[0] ? 'is-on' : '') + '">' + c[1] + ' ' + (cnt[c[0]] || 0) + '</button>'; }).join('') + '</div></section>' +
+        '<section>' + (shown.length ? '<div class="fgrid">' + shown.map(function (f) {
+          return '<button type="button" class="fcard" data-file="' + esc(f.id) + '"><span class="im"><img src="' + f.data + '" alt="' + esc(f.type + ' ' + f.name) + '" loading="lazy"><span class="ftype ftype--' + f.type + '">' + f.type + '</span></span>' +
+            '<span class="cap"><span class="fn" style="display:block" title="' + esc(f.name) + '">' + esc(f.name) + '</span><span class="fm" style="display:block">' + esc(fileMeta(f)) + '</span></span></button>';
+        }).join('') + '</div>' : '<div class="fempty">' + (all.length ? 'No files of this type.' : 'No files yet. Drivers add CMR, checklists and pictures in the driver app; you can also upload them here.') + '</div>') + '</section>';
+    }
+    function lightbox() {
+      var o = state.sel && JTMS.store.get(state.sel), el = $('lb');
+      if (!o || !state.lb) { el.innerHTML = ''; return; }
+      var all = FILES.list(o), i = all.findIndex(function (f) { return f.id === state.lb; }), f = all[i];
+      if (!f) { state.lb = null; el.innerHTML = ''; return; }
+      el.innerHTML = '<div class="lb" role="dialog" aria-label="' + esc(f.name) + '"><div class="im"><img src="' + f.data + '" alt="' + esc(f.type + ' ' + f.name) + '"></div>' +
+        (all.length > 1 ? '<button type="button" class="nav prev" id="lb-prev" aria-label="Previous file">‹</button><button type="button" class="nav next" id="lb-next" aria-label="Next file">›</button>' : '') +
+        '<div class="bar2"><span class="ftype ftype--' + f.type + '">' + f.type + '</span><div class="meta"><b>' + esc(f.name) + '</b>' + esc(fileMeta(f)) + ' · ' + (i + 1) + ' of ' + all.length + '</div><div class="acts">' +
+        (state.fdel ? '<span class="confirm">Delete this file?</span><button type="button" class="btn btn--danger" id="lb-del-yes">Delete</button><button type="button" class="btn" id="lb-del-no">Keep</button>'
+          : '<button type="button" class="btn" id="lb-dl">Download</button><button type="button" class="btn btn--danger" id="lb-del">Delete</button><button type="button" class="btn btn--brand" id="lb-close">Close</button>') + '</div></div></div>';
+    }
+
+    // ---------- Карточка ордера ----------
+    function drawer() {
+      var o = state.sel && JTMS.store.get(state.sel), el = $('drawer');
+      el.classList.toggle('is-open', !!o); document.body.classList.toggle('has-drawer', !!o);
+      if (!o) { el.innerHTML = ''; return; }
+      var t = ref.ctype(o.ct && o.ct.type), pts = [];
+      pts.push({ c: o.pickup.code, n: o.pickup.name, s: 'Pick up' + (o.pickup.date ? ', ' + fmtD(o.pickup.date, o.pickup.time_from) : '') + (o.pickup.ref ? ', ref ' + o.pickup.ref : '') });
+      (o.stops || []).forEach(function (s) { pts.push({ c: s.code || s.place, n: s.name + (s.place ? ', ' + s.place : ''), s: STOP[s.type] + (s.date ? ', ' + fmtD(s.date, s.hour) : '') + (s.reference ? ', ref ' + s.reference : '') }); });
+      pts.push({ c: o.deliver.code, n: o.deliver.name, s: 'Deliver' + (o.deliver.closing_date ? ', closing ' + fmtD(o.deliver.closing_date, o.deliver.closing_time) : '') + (o.deliver.ref ? ', ref ' + o.deliver.ref : '') });
+      var kv = function (rows) { return '<dl class="kv">' + rows.filter(function (r) { return r[1]; }).map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + cp(r[2] != null ? r[2] : r[1], r[1]) + '</dd>'; }).join('') + '</dl>'; };
+      el.innerHTML =
+        '<div class="dr__head"><div class="dr__row"><span class="dr__fnr">' + esc(o.file_nr) + '</span><span class="st st--' + o.status + '" style="background:rgba(255,255,255,.14);color:#fff">' + STATUS[o.status] + '</span>' +
+          '<button type="button" class="dr__x" id="dr-close" aria-label="Close">✕</button></div>' +
+          '<div class="dr__sub">' + cp(o.customer) + ', booking ' + cp(o.booking) + '</div>' +
+          '<div class="dr__cnt">' + (o.container_no ? cp(iso.format(o.container_no)) : 'Container number not set') + '</div>' +
+          '<div class="dr__sub">' + esc([t && t.label.split(' · ')[1], o.ct.group, isReefer(o) && o.rf && o.rf.temp != null ? o.rf.temp + ' °C' : '', o.shipping_line].filter(Boolean).join(', ')) + '</div></div>' +
+        '<div class="dtabs" role="tablist"><button type="button" data-tab="details" class="' + (state.tab === 'details' ? 'is-on' : '') + '">Details</button>' +
+          '<button type="button" data-tab="files" class="' + (state.tab === 'files' ? 'is-on' : '') + '">Attachments <b>' + FILES.list(o).length + '</b></button></div>' +
+        '<div class="dr__body">' + (state.tab === 'files' ? filesTab(o) : '' +
+          '<section><h3>Truck</h3><select class="truck-sel" id="act-truck" aria-label="Truck"><option value="">Not assigned</option>' +
+            ref.trucks.map(function (t) { return '<option value="' + t.fleet + '"' + (t.fleet === truckOf(o) ? ' selected' : '') + '>' + t.fleet + '  ·  ' + t.plate + (t.driver ? '  ·  ' + t.driver : '') + '</option>'; }).join('') + '</select></section>' +
+          driverBox(o) +
+          '<section><h3>Route</h3><ul class="tl">' + pts.map(function (p) { return '<li><span class="d"></span><div><div class="c">' + (p.c ? cp(p.c) : '—') + '</div><div class="n">' + cp(p.n) + '</div><div class="s">' + esc(p.s) + '</div></div></li>'; }).join('') + '</ul></section>' +
+          '<section><h3>Booking</h3>' + kv([['Client ref', esc(o.client_ref)], ['Employee', esc(o.employee)], ['Combi ID', esc(o.combi_id)], ['Km', o.km != null ? esc(o.km) : ''], ['Vessel', esc(o.deliver.vessel || o.pickup.vessel)], ['Destination', esc(o.deliver.destination)], ['Seal', esc(o.ct.seal)], ['B/L', esc(o.ct.bl)]]) + '</section>' +
+          ((o.articles || []).length ? '<section><h3>Articles</h3>' + kv(o.articles.map(function (a) { return [esc(a.code || a.description), esc([a.description, a.gross ? a.gross + ' kg' : '', a.un ? 'UN ' + a.un : ''].filter(Boolean).join(', '))]; })) + '</section>' : '') +
+          (o.remarks ? '<section><h3>Remarks</h3><div style="font-size:13px;white-space:pre-wrap">' + esc(o.remarks) + '</div></section>' : '')) +
+        '</div>' +
+        '<div class="dr__foot">' + (state.confirm
+          ? '<span class="confirm">Delete order ' + esc(o.file_nr) + '?</span><button type="button" class="btn btn--danger" id="del-yes">Delete</button><button type="button" class="btn" id="del-no">Keep</button>'
+          : '<button type="button" class="btn btn--brand" id="act-edit">Edit</button><button type="button" class="btn" id="act-copy">Duplicate</button><button type="button" class="btn" id="act-row" title="Copy all columns, tab-separated — paste into Excel or an email">Copy row</button><button type="button" class="btn btn--danger" id="act-del">Delete</button>' +
+            '<select class="status-sel" id="act-status" aria-label="Status">' + Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (k === o.status ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select>') + '</div>';
+    }
+    function rowText(o) {
+      var s = firstStop(o);
+      var tk = ref.truck(o.truck);
+      return [o.customer, o.booking, o.container_no ? iso.format(o.container_no) : '', (ref.ctype(o.ct && o.ct.type) || { label: ' · ' }).label.split(' · ')[1], tk ? tk.fleet : '', tk ? tk.plate : '',
+        [o.pickup && o.pickup.code].concat((o.stops || []).map(function (x) { return x.code || x.place; }), [o.deliver && o.deliver.code]).join(' > '),
+        s ? fmtD(s.date, s.hour) + ' ' + (s.place || '') : '', o.deliver && o.deliver.closing_date ? fmtD(o.deliver.closing_date, o.deliver.closing_time) : '',
+        o.deliver && o.deliver.vessel || '', o.shipping_line, STATUS[o.status]].join('\t');
+    }
+    function select(id) {
+      if (id !== state.sel) { state.tab = 'details'; state.ftype = 'all'; }
+      state.sel = state.sel === id ? null : id; state.confirm = false;
+      document.querySelectorAll('#tbl tbody tr').forEach(function (r) { r.classList.toggle('is-sel', r.getAttribute('data-id') === state.sel); });
+      drawer(); sendBtn();
+    }
+    function openForm(mode, id) {
+      try { sessionStorage.setItem('jtms.open', JSON.stringify({ mode: mode, id: id })); } catch (e) { /* остаётся параметр в адресе */ }
+      location.href = 'order-new.html?' + (mode === 'edit' ? 'id=' : 'copy=') + encodeURIComponent(id);
+    }
+
+    // ---------- События ----------
+    $('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
+    document.addEventListener('click', function (e) {
+      var t = e.target, el;
+      if ((el = t.closest('.cp'))) { copyText(el.getAttribute('data-copy'), el); return; }
+      if ((el = t.closest('[data-sendone]'))) {
+        var so = JTMS.store.get(el.getAttribute('data-sendone')), lt1 = JTMS.store.buildLegs(so).find(function (l) { return l.truck && l.status !== 'done'; }), tk1 = lt1 && ref.truck(lt1.truck);
+        SEND.job(so.id); render(); drawer(); toast('Sent: ' + so.customer + ' → ' + (tk1 ? tk1.fleet + (tk1.driver ? ' · ' + tk1.driver : '') : 'driver')); return;
+      }
+      if ((el = t.closest('[data-chk]'))) { state.checked[el.getAttribute('data-chk')] = el.checked; el.closest('tr').classList.toggle('is-chk', el.checked); sendBtn(); return; }
+      if (t.closest('#chk-all')) { var on = t.closest('#chk-all').checked; visible(JTMS.store.list()).forEach(function (o) { state.checked[o.id] = on; }); render(); return; }
+      if (t.closest('td.ck')) return;
+      if ((el = t.closest('[data-assign]'))) { state.sel = null; select(el.getAttribute('data-assign')); setTimeout(function () { var x = $('act-truck'); if (x) x.focus(); }, 220); return; }
+      if (t.closest('#act-row')) { var ro = JTMS.store.get(state.sel); copyText(rowText(ro), null, 'Copied the row of ' + ro.customer + ' — paste into Excel or an email'); return; }
+      if (t.closest('#tbl tbody') && String(window.getSelection && window.getSelection()).trim()) return;
+      if ((el = t.closest('[data-f]'))) { state.filter = el.getAttribute('data-f'); render(); return; }
+      if ((el = t.closest('th[data-sort]'))) { var k = el.getAttribute('data-sort'); state.sort = { k: k, d: state.sort.k === k ? -state.sort.d : (k === 'created' || k === 'file' ? -1 : 1) }; render(); return; }
+      if ((el = t.closest('[data-day]')) && !el.disabled) {
+        var v = el.getAttribute('data-day');
+        state.day = v === 'all' ? '' : v === 'today' ? ymdL(new Date()) : shiftDay(state.day || ymdL(new Date()), v === '-1' ? -1 : 1);
+        try { sessionStorage.setItem('jtms.orders.day', state.day); } catch (err) {}
+        render(); return;
+      }
+      if (t.closest('.grp-h')) return;
+      if ((el = t.closest('#tbl tbody tr[data-id]'))) { select(el.getAttribute('data-id')); return; }
+      if (t.closest('#load-samples')) { JTMS.store.addMany(JTMS.samples()); render(); toast('Loaded ' + JTMS.samples().length + ' sample orders'); return; }
+      if (t.closest('#dr-close')) { select(state.sel); return; }
+      if ((el = t.closest('.dtabs [data-tab]'))) { state.tab = el.getAttribute('data-tab'); drawer(); return; }
+      if ((el = t.closest('[data-ftype]'))) { state.ftype = el.getAttribute('data-ftype'); drawer(); return; }
+      if ((el = t.closest('[data-file]'))) { state.lb = el.getAttribute('data-file'); state.fdel = false; lightbox(); return; }
+      if (t.closest('#lb-close') || (t.classList && t.classList.contains('im') && t.closest('.lb'))) { state.lb = null; lightbox(); return; }
+      if (t.closest('#lb-prev') || t.closest('#lb-next')) { lbStep(t.closest('#lb-prev') ? -1 : 1); return; }
+      if (t.closest('#lb-del')) { state.fdel = true; lightbox(); return; }
+      if (t.closest('#lb-dl')) { download(); return; }
+      if (t.closest('#lb-del-no')) { state.fdel = false; lightbox(); return; }
+      if (t.closest('#lb-del-yes')) { FILES.remove(state.sel, state.lb); state.lb = null; state.fdel = false; lightbox(); drawer(); toast('File deleted'); return; }
+      if (t.closest('#send-all')) {
+        var pk = picked().filter(function (o) { var x = SEND.ofOrder(o); return isOpen(o) && (x === 'none' || x === 'changed'); }), names = [];
+        pk.forEach(function (o) { var lt = JTMS.store.buildLegs(o).find(function (l) { return l.truck && l.status !== 'done'; }), tk = lt && ref.truck(lt.truck); if (SEND.job(o.id)) names.push(o.customer + ' → ' + (tk ? tk.fleet + (tk.driver ? ' · ' + tk.driver : '') : 'driver')); });
+        state.checked = {}; render(); drawer();
+        toast(names.length === 1 ? 'Sent: ' + names[0] : names.length + ' orders sent to drivers'); return;
+      }
+      if (t.closest('#snd-plan')) {
+        var po = JTMS.store.get(state.sel), d = $('snd-date').value, h = $('snd-time').value;
+        if (!d || !h) { toast('Pick the pick-up date and time'); return; }
+        TM.planJob(po.id, truckOf(po), d + 'T' + h); SEND.job(po.id, null, $('snd-note').value.trim());
+        render(); drawer(); toast('Planned on ' + truckOf(po) + ' at ' + h + ' and sent to the driver'); return;
+      }
+      if (t.closest('#snd-send')) { var k2 = SEND.job(state.sel, null, $('snd-note').value.trim()); render(); drawer(); toast(k2 ? 'Sent to the driver\'s phone' : 'Nothing to send'); return; }
+      if (t.closest('#snd-recall')) { SEND.recall(state.sel); render(); drawer(); toast('Taken back from the driver\'s phone'); return; }
+      if (t.closest('#act-edit')) { openForm('edit', state.sel); return; }
+      if (t.closest('#act-copy')) { openForm('copy', state.sel); return; }
+      if (t.closest('#act-del')) { state.confirm = true; drawer(); return; }
+      if (t.closest('#del-no')) { state.confirm = false; drawer(); return; }
+      if (t.closest('#del-yes')) { var o = JTMS.store.get(state.sel); JTMS.store.remove(state.sel); state.sel = null; state.confirm = false; render(); drawer(); toast('Deleted order ' + o.file_nr); }
+    });
+    // Скачать файл: в claude.ai — через разрешённое сохранение, в обычном браузере — ссылкой
+    var dlNs = null;
+    if (window.claude && typeof window.claude.use === 'function') window.claude.use('downloads').then(function (ns) { dlNs = ns; }, function () {});
+    function download() {
+      var f = FILES.list(JTMS.store.get(state.sel)).find(function (x) { return x.id === state.lb; }); if (!f) return;
+      var bin = atob(f.data.split(',')[1]), buf = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      var blob = new Blob([buf], { type: 'image/jpeg' });
+      if (dlNs) {
+        dlNs.save({ filename: f.name, data: blob }).then(function () { toast('Saved ' + f.name); }, function (e) {
+          if (e && e.code === 'declined') return;
+          toast(e && e.code === 'host_unavailable' ? 'This app cannot save files. Open Hyperion in a browser to download.' : 'Could not save the file here');
+        });
+        return;
+      }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = f.name; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function lbStep(d) {
+      var all = FILES.list(JTMS.store.get(state.sel)), i = all.findIndex(function (f) { return f.id === state.lb; });
+      state.lb = all[(i + d + all.length) % all.length].id; state.fdel = false; lightbox();
+    }
+    document.addEventListener('change', function (e) {
+      if (e.target.id === 'up-file') {
+        var id = state.sel, type = $('up-type').value, fl = Array.prototype.slice.call(e.target.files || []);
+        fl.reduce(function (pr, f) { return pr.then(function () { return FILES.add(id, f, { type: type, by: 'office' }); }); }, Promise.resolve())
+          .then(function () { state.ftype = 'all'; drawer(); toast(fl.length + ' file' + (fl.length === 1 ? '' : 's') + ' added as ' + type); }, function (err) { drawer(); toast(err.message); });
+        return;
+      }
+      if (e.target.id === 'act-truck') {
+        var prev = JTMS.store.get(state.sel);
+        var ot = JTMS.store.update(state.sel, { truck: e.target.value }), tk = ref.truck(ot.truck);
+        // план уже был — переносим работу на новую машину с тем же временем; водителю нужно отправить заново
+        var open = TM.legs(prev).filter(function (l) { return l.status !== 'done' && l.truck && l.start; });
+        if (open.length && tk) TM.planJob(ot.id, tk.fleet, open[0].start, open.map(function (l) { return l.seq; }));
+        render(); drawer(); toast(tk ? 'Truck ' + tk.fleet + ' (' + tk.plate + ') assigned' : 'Truck removed from the order'); return;
+      }
+      if (e.target.id !== 'act-status') return;
+      var o = JTMS.store.update(state.sel, { status: e.target.value }); render(); drawer(); toast('Order ' + o.file_nr + ': ' + STATUS[o.status]);
+    });
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('cp')) { e.preventDefault(); copyText(e.target.getAttribute('data-copy'), e.target); return; }
+      if (state.lb) { if (e.key === 'Escape') { state.lb = null; lightbox(); } else if (e.key === 'ArrowLeft') lbStep(-1); else if (e.key === 'ArrowRight') lbStep(1); return; }
+      var typing = e.target.closest('input,select,textarea');
+      if (e.key === 'Escape') { if (typing) { e.target.blur(); return; } if (state.sel) select(state.sel); return; }
+      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '/') { e.preventDefault(); $('q').focus(); }
+      else if (e.key === 'n' || e.key === 'N') location.href = 'order-new.html';
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        var rows = visible(JTMS.store.list()); if (!rows.length) return; e.preventDefault();
+        var i = rows.findIndex(function (o) { return o.id === state.sel; }), n = rows[Math.max(0, Math.min(rows.length - 1, i < 0 ? 0 : i + (e.key === 'ArrowDown' ? 1 : -1)))];
+        state.sel = null; select(n.id); var r = document.querySelector('#tbl tr[data-id="' + n.id + '"]'); if (r) r.scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    // ---------- Старт: подсветить только что созданный ордер ----------
+    try {
+      var fl = JSON.parse(sessionStorage.getItem('jtms.flash') || 'null'); sessionStorage.removeItem('jtms.flash');
+      if (fl && JTMS.store.get(fl.id)) { state.flashId = fl.id; state.filter = 'all'; state.day = ''; state.openId = fl.open ? fl.id : null; setTimeout(function () { toast(fl.text); }, 50); }
+    } catch (e) { /* без подсветки */ }
+    // ---------- перетаскивание колонок: берём заголовок и бросаем левее/правее другого ----------
+    var colDrag = null;
+    function clearCol() { document.querySelectorAll('.orders th').forEach(function (th) { th.classList.remove('drop-l', 'drop-r', 'is-dragging'); }); }
+    $('tbl').addEventListener('dragstart', function (e) {
+      var th = e.target.closest && e.target.closest('th[data-col]'); if (!th) return;
+      colDrag = th.getAttribute('data-col'); th.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', colDrag);
+    });
+    $('tbl').addEventListener('dragover', function (e) {
+      var th = colDrag && e.target.closest && e.target.closest('th[data-col]'); if (!th) return;
+      e.preventDefault();
+      var r = th.getBoundingClientRect(), right = e.clientX > r.left + r.width / 2;
+      document.querySelectorAll('.orders th').forEach(function (x) { if (x !== th) x.classList.remove('drop-l', 'drop-r'); });
+      th.classList.toggle('drop-r', right); th.classList.toggle('drop-l', !right);
+    });
+    $('tbl').addEventListener('drop', function (e) {
+      var th = colDrag && e.target.closest && e.target.closest('th[data-col]'); if (!th) return;
+      e.preventDefault();
+      var to = th.getAttribute('data-col'), right = th.classList.contains('drop-r');
+      if (to !== colDrag) {
+        COLS.splice(COLS.indexOf(colDrag), 1);
+        COLS.splice(COLS.indexOf(to) + (right ? 1 : 0), 0, colDrag);
+        saveCols(); render(); toast('Column moved. The order is saved in this browser.');
+      }
+      colDrag = null; clearCol();
+    });
+    $('tbl').addEventListener('dragend', function () { colDrag = null; clearCol(); });
+
+    // водитель в приложении принял работу или добавил файл — обновить (если офис не печатает в карточке)
+    window.addEventListener('storage', function () {
+      if (document.querySelector('#drawer input:focus, #drawer textarea:focus, #drawer select:focus')) { render(); return; }
+      render(); drawer(); lightbox();
+    });
+    render();
+    if (state.flashId) { var r = document.querySelector('#tbl tr[data-id="' + state.flashId + '"]'); if (r) r.scrollIntoView({ block: 'center' }); }
+    if (state.openId) select(state.openId);
+  })();
+  </script>
+</body>
+</html>

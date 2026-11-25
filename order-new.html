@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New order — Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Страница «Новый ордер». Базовые токены — в theme.css ---------- */
+
+    /* Разделы страницы в шапке */
+    .jump { display: flex; gap: 2px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--line); }
+    .jump a { padding: 6px 10px; border-radius: 6px; color: var(--ink-2); text-decoration: none; font-weight: 500; font-size: 14px; }
+    .jump a:hover { color: var(--ink); background: var(--harbour); }
+    .jump a.is-on { color: var(--blue); background: var(--blue-soft); }
+
+    .layout { max-width: 1440px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+    .main { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
+
+    /* Секции */
+    .sec { scroll-margin-top: 76px; }
+    .sec__head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px 2px; }
+    .sec__head h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+    .sec__head p { color: var(--ink-2); font-size: 14px; }
+    .panel { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); padding: 20px; }
+
+    /* Поля: подпись сверху */
+    .fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 16px; }
+    .s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s4 { grid-column: 1 / -1; }
+    .fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .fld > label { font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
+    .fld > label .req { color: var(--signal); }
+    .fld .err { min-height: 0; }
+    .pair { display: flex; gap: 6px; }
+    .pair > * { flex: 1; min-width: 0; }
+    .pair > .w-time { flex: 0 0 96px; }
+    .main .input, .main .select { height: 36px; border-color: var(--line); border-radius: var(--radius-ctl); font-size: 14.5px; }
+    .main .input:focus, .main .select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .14); }
+    .main .textarea { border-color: var(--line); border-radius: var(--radius-ctl); font-size: 14.5px; }
+    .main input[type=date].input, .main input[type=time].input { font-size: 14px; }
+    .input.is-code { text-transform: uppercase; font-family: var(--font-mono); font-weight: 600; letter-spacing: 0; }
+    .main .input::placeholder { color: #A9B5BE; font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .main .select:invalid, .main .select.is-placeholder { color: var(--ink-3); }
+    .input.is-error, .select.is-error { border-color: var(--neg) !important; background: #FFF8F8; }
+
+    /* Переключатели-чипы */
+    .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tog { position: relative; }
+    .tog input { position: absolute; opacity: 0; pointer-events: none; }
+    .tog span { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; color: var(--ink-2); cursor: pointer; background: #fff; user-select: none; }
+    .tog span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+    .tog input:checked + span { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+    .tog input:checked + span::before { background: var(--blue); border-color: var(--blue); }
+    .tog input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 1px; }
+    .tog span:hover { border-color: var(--ink-3); }
+
+    /* Тип контейнера — сегменты */
+    .types { display: flex; flex-wrap: wrap; gap: 6px; }
+    .types .tog span { border-radius: var(--radius-ctl); height: 36px; padding: 0 12px; font-family: var(--font-mono); font-size: 13.5px; }
+    .types .tog span::before { display: none; }
+    .types .tog small { font-family: var(--font-ui); color: var(--ink-3); font-size: 12.5px; }
+    .types .tog input:checked + span small { color: var(--blue); }
+
+    /* Номер контейнера */
+    .cnum { position: relative; }
+    .cnum .input { height: 44px; font: 500 18px var(--font-code); letter-spacing: .06em; padding-right: 110px; }
+    .cnum__state { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+
+    /* ---------- Маршрут: хребет ---------- */
+    .spine { position: relative; display: flex; flex-direction: column; gap: 14px; padding-left: 44px; }
+    .spine::before { content: ''; position: absolute; left: 15px; top: 22px; bottom: 22px; width: 3px; border-radius: 2px;
+      background: var(--route); opacity: .9; }
+    .node { position: relative; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .node__pin { position: absolute; left: -44px; top: 16px; width: 33px; height: 33px; border-radius: 50%; background: #fff; border: 3px solid var(--blue); display: grid; place-items: center; font: 700 13px var(--font-mono); color: var(--blue); z-index: 1; }
+    #node-pickup .node__pin { border-color: var(--navy); color: var(--navy); }
+    .node--end .node__pin { background: linear-gradient(135deg, var(--blue), var(--cyan)); border-color: var(--cyan); color: #fff; }
+    .node__head { display: flex; align-items: center; gap: 10px; padding: 14px 18px 0; flex-wrap: wrap; }
+    .node__title { font-size: 15px; font-weight: 700; }
+    .node__body { padding: 12px 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+    .node__tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+    .icon-btn { width: 30px; height: 30px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-2); }
+    .icon-btn:hover:not(:disabled) { background: var(--harbour); color: var(--ink); }
+    .icon-btn:disabled { opacity: .3; cursor: default; }
+    .kind { font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--harbour); color: var(--ink-2); }
+    .kind--terminal { background: var(--blue-soft); color: var(--blue); }
+    .kind--depot { background: #E6F7FD; color: #007BA8; }
+    .kind--port { background: #EEF0FF; color: #3730A3; }
+    .kind--client { background: #EEF6EC; color: #2F6B2A; }
+
+    /* Площадка: код + карточка адреса */
+    .loc { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+    .loc__card { min-height: 44px; border-radius: var(--radius-ctl); background: var(--harbour); padding: 7px 12px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+    .loc__name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .loc__addr { color: var(--ink-2); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .loc__card.is-empty .loc__name { color: var(--ink-3); font-weight: 500; }
+    .loc__edit { display: none; }
+    .loc__edit.is-open { display: grid; }
+    .loc .input.is-code { height: 44px; font-size: 14px; }
+    .linkbtn { color: var(--blue); font-weight: 600; font-size: 14px; padding: 6px 8px; border-radius: 6px; white-space: nowrap; }
+    .linkbtn:hover { background: var(--blue-soft); }
+
+    .seg2 { display: inline-flex; background: var(--harbour); border-radius: 8px; padding: 3px; gap: 2px; }
+    .seg2 button { height: 28px; padding: 0 12px; border-radius: 6px; font-weight: 600; font-size: 13.5px; color: var(--ink-2); }
+    .seg2 button.is-on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(19, 33, 43, .12); }
+
+    .closing .input { border-color: #F6C7AC; background: var(--signal-soft); }
+    .closing > label { color: var(--signal); font-weight: 600; }
+
+    .more > summary { list-style: none; cursor: pointer; color: var(--blue); font-weight: 600; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+    .more > summary::-webkit-details-marker { display: none; }
+    .more > summary::before { content: '+'; font: 600 14px var(--font-mono); }
+    .more[open] > summary::before { content: '–'; }
+    .more > .fields { margin-top: 12px; }
+
+    .add-stop { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border: 1.5px dashed #9DBBFB; border-radius: 999px; color: var(--blue); font-weight: 600; background: #fff; position: relative; }
+    .add-stop:hover { background: var(--blue-soft); }
+    .add-stop::before { content: ''; position: absolute; left: -32px; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px dashed var(--blue); transform: translateY(-50%); }
+    .node-err { color: var(--neg); font-size: 13.5px; }
+
+    /* Груз */
+    .tbl { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .tbl th { text-align: left; font-size: 13px; font-weight: 500; color: var(--ink-2); padding: 0 4px 8px; white-space: nowrap; }
+    .tbl td { padding: 3px 4px; }
+    .tbl .input { height: 34px; font-size: 14px; padding: 0 8px; }
+    .tbl-wrap { overflow-x: auto; }
+    .muted-empty { color: var(--ink-2); padding: 6px 0 12px; }
+    .flags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .subhead { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: baseline; gap: 10px; }
+    .subhead span { font-weight: 400; color: var(--ink-2); font-size: 14px; }
+    .reefer { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 18px; display: none; }
+    .reefer.is-on { display: block; }
+
+    /* ---------- Сводка справа ---------- */
+    .side { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 12px; }
+    .ticket { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
+    .ticket__top { padding: 18px 18px 14px; background: linear-gradient(135deg, #081640 0%, #0B2A80 70%, #0A47C9 100%); color: #fff; }
+    .ticket__label { color: #9DB4EA; font-size: 13.5px; }
+    .ticket__cnt { font: 500 20px var(--font-code); letter-spacing: .04em; margin-top: 2px; }
+    .ticket__cnt.is-empty { color: #7E95CC; font: 500 15px var(--font-ui); letter-spacing: 0; }
+    .ticket__meta { color: #CBD8F5; font-size: 14px; margin-top: 4px; }
+    .ticket__route { padding: 16px 18px; display: flex; flex-direction: column; gap: 0; border-bottom: 1px solid var(--line); }
+    .rt { display: grid; grid-template-columns: 16px 1fr; gap: 10px; position: relative; padding-bottom: 12px; }
+    .rt:last-child { padding-bottom: 0; }
+    .rt::before { content: ''; position: absolute; left: 7px; top: 14px; bottom: -2px; width: 2px; background: #BCD0FB; }
+    .rt:last-child::before { display: none; }
+    .rt__dot { width: 12px; height: 12px; margin-top: 3px; border-radius: 50%; border: 2.5px solid var(--blue); background: #fff; position: relative; z-index: 1; }
+    .rt--end .rt__dot { background: var(--cyan); border-color: var(--cyan); }
+    .rt__code { font: 600 14px var(--font-mono); }
+    .rt__sub { color: var(--ink-2); font-size: 13.5px; }
+    .rt__dead { color: var(--signal); font-weight: 600; font-size: 13.5px; }
+    .checks { padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
+    .checks__title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .checks ul { list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+    .checks li { font-size: 13.5px; padding: 6px 9px; border-radius: 6px; cursor: pointer; }
+    .checks li.is-err { background: var(--neg-bg); color: var(--neg); }
+    .checks li.is-warn { background: var(--warn-bg); color: var(--warn); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .ticket__act { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
+    .btn-create { height: 44px; border-radius: 9px; background: linear-gradient(90deg, var(--blue), #0A7BF5); color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .btn-create:hover { background: var(--blue-hover); }
+    .btn-create:focus-visible { outline: 3px solid rgba(0, 174, 239, .5); outline-offset: 2px; }
+    .btn-create kbd { font: 500 12px var(--font-mono); opacity: .75; }
+    .btn-clear { height: 34px; border-radius: 8px; color: var(--ink-2); font-weight: 500; }
+    .btn-clear:hover { background: var(--harbour); color: var(--ink); }
+    .recent { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card); padding: 14px 18px; font-size: 14px; }
+    .recent h3 { font-size: 14px; margin-bottom: 8px; }
+    .recent li { list-style: none; display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; color: var(--ink-2); }
+    .recent li b { color: var(--ink); font: 600 13.5px var(--font-mono); }
+
+    .main .btn { border-color: var(--line); border-radius: var(--radius-ctl); }
+
+    @media (max-width: 1280px) { .jump { display: none; } }
+    @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } .side { position: static; } }
+    @media (max-width: 760px) {
+      .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .s3 { grid-column: span 2; }
+      .loc { grid-template-columns: 1fr; }
+      .layout { padding: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+    html { scroll-behavior: smooth; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top__in">
+    <a class="brand" href="orders.html" aria-label="Hyperion TMS — orders"><img class="brand__mark" src="assets/brand/hyperion-mark.png" alt=""><img class="brand__word" src="assets/brand/hyperion-wordmark.png" alt="Hyperion"></a>
+    <nav class="appnav"><a href="orders.html">Orders</a><a href="order-new.html" class="is-on" id="nav-new">New order</a><a href="dispatch.html">Dispatch</a><a href="driver.html">Driver app</a><a href="ports.html">Terminals &amp; ports</a><a href="settings.html">Settings</a></nav>
+    <nav class="jump" id="jump">
+      <a href="#s-booking">Booking</a><a href="#s-container">Container</a><a href="#s-route">Route</a><a href="#s-cargo">Cargo</a><a href="#s-extras">Extras</a>
+    </nav>
+    <div class="top__right"><span class="small" style="color:var(--ink-2)" id="mode-label"></span><button type="button" class="btn btn--sm" id="demo">Fill with example</button></div>
+  </div></header>
+
+  <div class="layout">
+    <form class="main" id="form" novalidate autocomplete="off"></form>
+    <aside class="side">
+      <div class="ticket">
+        <div class="ticket__top">
+          <div class="ticket__label">Container</div>
+          <div class="ticket__cnt" id="t-cnt"></div>
+          <div class="ticket__meta" id="t-meta"></div>
+        </div>
+        <div class="ticket__route" id="t-route"></div>
+        <div class="checks" id="t-checks"></div>
+        <div class="ticket__act">
+          <button type="button" class="btn-create" id="save">Create order <kbd>Ctrl ↵</kbd></button>
+          <button type="button" class="btn-clear" id="reset">Clear form</button>
+          <a class="btn-clear" href="orders.html" style="display:grid;place-items:center;text-decoration:none">Back to orders</a>
+        </div>
+      </div>
+      <div class="recent" id="recent"></div>
+    </aside>
+  </div>
+  <div class="toasts" id="toasts"></div>
+  <datalist id="loc-codes"></datalist>
+  <datalist id="dest-list"></datalist>
+
+  <script src="assets/ports.js"></script>
+  <script src="assets/terminals.js"></script>
+  <script src="assets/ref.js"></script>
+  <script src="assets/store.js"></script>
+  <script>
+  (function () {
+    var ref = JTMS.ref, iso = JTMS.iso6346;
+    var $ = function (id) { return document.getElementById(id); };
+    var form = $('form');
+    var state = { stops: [], articles: [], tried: false, open: {}, editId: null };
+
+    // Режим открытия: ?id=… — правка, ?copy=… — копия; запасной канал — sessionStorage (для встроенного просмотра)
+    function readMode() {
+      var q = new URLSearchParams(location.search), m = null;
+      if (q.get('id')) m = { mode: 'edit', id: q.get('id') };
+      else if (q.get('copy')) m = { mode: 'copy', id: q.get('copy') };
+      try { if (!m) m = JSON.parse(sessionStorage.getItem('jtms.open') || 'null'); sessionStorage.removeItem('jtms.open'); } catch (e) { /* нет хранилища */ }
+      return m;
+    }
+
+    // ================= Конструктор полей =================
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function fid(n) { return 'f-' + n.replace(/\./g, '-'); }
+    function I(n, o) {
+      o = o || {};
+      return '<input class="input' + (o.mono ? ' input--mono' : '') + (o.code ? ' is-code' : '') + (o.cls ? ' ' + o.cls : '') + '" name="' + n + '" id="' + fid(n) + '"' +
+        (o.type ? ' type="' + o.type + '"' : '') + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.list ? ' list="' + o.list + '"' : '') +
+        (o.step ? ' step="' + o.step + '"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + '>';
+    }
+    function S(n, opts, o) {
+      o = o || {};
+      return '<select class="select" name="' + n + '" id="' + fid(n) + '"' + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + '>' + (o.empty === false ? '' : '<option value="">' + (o.ph || '') + '</option>') +
+        opts.map(function (x) { var v = Array.isArray(x) ? x[0] : x, l = Array.isArray(x) ? x[1] : x; return '<option value="' + esc(v) + '">' + esc(l) + '</option>'; }).join('') + '</select>';
+    }
+    function T(n, label, title) { return '<label class="tog"' + (title ? ' title="' + esc(title) + '"' : '') + '><input type="checkbox" name="' + n + '" id="' + fid(n) + '"><span>' + esc(label) + '</span></label>'; }
+    function F(label, ctl, o) {
+      o = o || {};
+      return '<div class="fld' + (o.cls ? ' ' + o.cls : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><label for="' + (o.for || '') + '">' + esc(label) + (o.req ? ' <span class="req">*</span>' : '') + '</label>' + ctl +
+        (o.err ? '<span class="err" data-err="' + o.err + '"></span>' : '') + '</div>';
+    }
+    function sec(id, title, sub, body) { return '<section class="sec" id="' + id + '"><div class="sec__head"><h2>' + title + '</h2><p>' + sub + '</p></div>' + body + '</section>'; }
+
+    // Площадка: код → карточка адреса, адрес можно поправить вручную
+    function locBlock(p) {
+      return '<div class="loc">' + I(p + '.code', { code: 1, list: 'loc-codes', ph: 'Code, terminal or port', aria: 'Location code' }) +
+        '<div class="loc__card is-empty" id="card-' + p + '"><div class="loc__name">Choose a location</div><div class="loc__addr">Type a BPA code, terminal or port, e.g. ' + (p === 'pickup' ? 'MEDRANTW' : '1742 or ECT Delta') + '</div></div>' +
+        '<button type="button" class="linkbtn" data-edit="' + p + '">Edit address</button></div>' +
+        '<div class="fields loc__edit" id="edit-' + p + '">' +
+          F('Name', I(p + '.name'), { cls: 's2', for: fid(p + '.name') }) + F('Address', I(p + '.address'), { cls: 's2', for: fid(p + '.address') }) +
+          F('Address line 2', I(p + '.address2'), { cls: 's2', for: fid(p + '.address2') }) +
+          F('Postal code', I(p + '.postal', { mono: 1 }), { for: fid(p + '.postal') }) + F('City', I(p + '.city'), { for: fid(p + '.city') }) +
+          F('Country', S(p + '.country', ref.countries), { for: fid(p + '.country') }) + F('Area', S(p + '.area', ref.areas), { for: fid(p + '.area') }) +
+        '</div>';
+    }
+    function windowFields(p, label) {
+      return F(label, '<div class="pair">' + I(p + '.date', { type: 'date', aria: label + ' date' }) + I(p + '.time_from', { type: 'time', cls: 'w-time', aria: 'from' }) + I(p + '.time_to', { type: 'time', cls: 'w-time', aria: 'to' }) + '</div>', { cls: 's2' });
+    }
+    function actuals(p) {
+      return F('Arrival / departure', '<div class="pair">' + I(p + '.arr', { type: 'time', aria: 'Arrival' }) + I(p + '.dep', { type: 'time', aria: 'Departure' }) + '</div>') +
+        F('Arr. / dep. for customer', '<div class="pair">' + I(p + '.arr_cust', { type: 'time', aria: 'Arrival for customer' }) + I(p + '.dep_cust', { type: 'time', aria: 'Departure for customer' }) + '</div>');
+    }
+    function node(p, pin, title, head, body, end) {
+      return '<div class="node' + (end ? ' node--end' : '') + '" id="node-' + p + '"><span class="node__pin">' + pin + '</span>' +
+        '<div class="node__head"><span class="node__title">' + title + '</span><span class="kind" id="kind-' + p + '" hidden></span>' + head + '</div>' +
+        '<div class="node__body">' + body + '</div></div>';
+    }
+
+    // ================= Разметка =================
+    var ICON_UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>';
+    var ICON_DOWN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+    var ICON_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+    form.innerHTML =
+      sec('s-booking', 'Booking', 'Who ordered it and on which line',
+        '<div class="panel"><div class="fields">' +
+          F('Customer', S('customer', ref.customers, { ph: 'Select customer' }), { cls: 's2', req: 1, err: 'customer', for: 'f-customer' }) +
+          F('Booking', I('booking', { mono: 1 }), { req: 1, err: 'booking', for: 'f-booking' }) +
+          F('Shipping company', S('shipping_line', ref.shippingLines, { ph: 'Select line' }), { req: 1, err: 'shipping_line', for: 'f-shipping_line' }) +
+          F('Client ref', I('client_ref', { mono: 1 }), { for: 'f-client_ref' }) +
+          F('Employee', S('employee', ref.employees), { for: 'f-employee' }) +
+          F('Group', S('pgroup', ref.planGroups, { ph: '—' }), { for: 'f-pgroup', title: 'Planning group G01–G13' }) +
+          F('Truck', S('truck', ref.trucks.map(function (t) { return [t.fleet, t.fleet + '  ·  ' + t.plate]; }), { ph: 'Not assigned' }), { for: 'f-truck', title: 'Fleet number and licence plate' }) +
+          F('Combi ID', I('combi_id', { mono: 1 }), { for: 'f-combi_id', title: 'Links several containers into one trip' }) +
+          F('Km', I('km', { type: 'number', step: 0.01, mono: 1 }), { for: 'f-km' }) +
+          F('Reuse order', I('reuse_order', { mono: 1 }), { for: 'f-reuse_order' }) +
+          F('Reuse ID', I('reuse_id', { mono: 1 }), { for: 'f-reuse_id' }) +
+          '<div class="fld s2"><label>Options</label><div class="toggles">' + T('inc_diesel', 'Diesel included') + T('sb', 'S/B') + T('move', 'Move') + '</div></div>' +
+        '</div></div>') +
+
+      sec('s-container', 'Container', 'Number can be added later for outbound',
+        '<div class="panel"><div class="fields">' +
+          F('Container number', '<div class="cnum">' + I('container_no', { ph: 'MSCU 482193 1' }) + '<span class="cnum__state" id="cnum-state"></span></div>', { cls: 's2', err: 'container_no', for: 'f-container_no' }) +
+          F('Tare, kg', I('tare_kg', { type: 'number', step: 10, mono: 1 }), { for: 'f-tare_kg' }) +
+          '<div class="fld"><label>&nbsp;</label><div class="toggles">' + T('container_ok', 'Number confirmed') + '</div></div>' +
+          '<div class="fld s4"><label>Type <span class="req">*</span></label><div class="types">' +
+            ref.containerTypes.map(function (t) {
+              var parts = t.label.split(' · ');
+              return '<label class="tog"><input type="radio" name="ct.type" value="' + t.id + '"><span>' + parts[0] + ' <small>' + parts[1] + '</small></span></label>';
+            }).join('') + '</div><span class="err" data-err="ct.type"></span></div>' +
+          F('Container group', S('ct.group', ref.groups.filter(Boolean)), { for: 'f-ct-group' }) +
+          F('Seal', I('ct.seal', { mono: 1 }), { for: 'f-ct-seal' }) +
+          F('B/L', I('ct.bl', { mono: 1 }), { cls: 's2', for: 'f-ct-bl' }) +
+        '</div></div>') +
+
+      sec('s-route', 'Route', 'Pick-up, every loading or unloading stop in order, then delivery',
+        '<div class="spine">' +
+          node('pickup', 'P', 'Pick up', '<div class="node__tools">' + I('pickup.ref', { mono: 1, ph: 'P ref', aria: 'Pick-up reference' }) + T('pickup.cc', 'CC', 'Container check') + '</div>',
+            locBlock('pickup') +
+            '<div class="fields">' + windowFields('pickup', 'Pick-up date and window') +
+              F('Demurrage starts', I('pickup.f_dem_start', { type: 'date' }), { for: fid('pickup.f_dem_start'), title: 'F Dem. St. in BPA' }) +
+              F('Departure', '<div class="pair">' + I('pickup.departure_date', { type: 'date', aria: 'Departure date' }) + I('pickup.departure_time', { type: 'time', cls: 'w-time', aria: 'Departure time' }) + '</div>') + '</div>' +
+            '<details class="more"><summary>More details</summary><div class="fields">' + actuals('pickup') +
+              F('Incoming vessel', I('pickup.vessel'), { for: fid('pickup.vessel') }) + F('Origin', I('pickup.origin'), { for: fid('pickup.origin') }) +
+              F('Pick-up instructions', '<textarea class="textarea" name="pickup.instructions" rows="2"></textarea>', { cls: 's4' }) + '</div></details>') +
+          '<div id="stops" style="display:contents"></div>' +
+          '<button type="button" class="add-stop" id="stop-add">+ Add loading or unloading</button>' +
+          node('deliver', 'D', 'Deliver', '<div class="node__tools">' + I('deliver.ref', { mono: 1, ph: 'D ref', aria: 'Delivery reference' }) + '</div>',
+            locBlock('deliver') +
+            '<div class="fields">' + windowFields('deliver', 'Delivery date and window') +
+              F('Closing', '<div class="pair">' + I('deliver.closing_date', { type: 'date', aria: 'Closing date' }) + I('deliver.closing_time', { type: 'time', cls: 'w-time', aria: 'Closing time' }) + '</div>', { cls: 's2 closing', err: 'deliver.closing_date', title: 'Cls D/T in BPA' }) +
+              F('Outgoing vessel', I('deliver.vessel'), { cls: 's2', for: fid('deliver.vessel') }) +
+              F('Destination', I('deliver.destination', { code: 1, list: 'dest-list' }), { for: fid('deliver.destination') }) +
+              F('Demurrage ends', I('deliver.f_dem_end', { type: 'date' }), { for: fid('deliver.f_dem_end'), title: 'F Dem. End in BPA' }) + '</div>' +
+            '<details class="more"><summary>More details</summary><div class="fields">' + actuals('deliver') +
+              F('Arrival', '<div class="pair">' + I('deliver.arrival_date', { type: 'date', aria: 'Arrival date' }) + I('deliver.arrival_time', { type: 'time', cls: 'w-time', aria: 'Arrival time' }) + '</div>', { cls: 's2' }) +
+              F('Delivery instructions', '<textarea class="textarea" name="deliver.instructions" rows="2"></textarea>', { cls: 's4' }) + '</div></details>', true) +
+        '</div>') +
+
+      sec('s-cargo', 'Cargo', 'Goods, documents and reefer settings',
+        '<div class="panel">' +
+          '<div class="subhead">Articles <span id="art-total"></span></div>' +
+          '<div class="tbl-wrap"><table class="tbl" style="min-width:1180px"><thead><tr>' +
+            '<th style="width:70px">Amount</th><th style="width:80px">Colli</th><th style="width:120px">Article code</th><th>Description</th><th style="width:100px">Gross, kg</th>' +
+            '<th style="width:90px">Seal</th><th style="width:80px">UN</th><th style="width:60px">ADR</th><th style="width:60px">Pack</th><th>ADR text</th><th style="width:100px">ATA</th><th style="width:110px">Document</th><th style="width:36px"></th>' +
+          '</tr></thead><tbody id="arts"></tbody></table></div>' +
+          '<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><button type="button" class="btn btn--sm" id="art-add">+ Add article</button><span class="err" data-err="articles"></span></div>' +
+          '<div style="border-top:1px solid var(--line);margin-top:20px;padding-top:18px">' +
+            '<div class="subhead">Documents and handling <span>switch on what applies</span></div>' +
+            '<div class="fields" style="margin-bottom:12px">' + F('Document location', S('doc_location', ref.docLocations), { for: 'f-doc_location' }) + '</div>' +
+            '<div class="flags">' +
+              T('f.adr', 'ADR') + T('f.lq_adr', 'LQ ADR', 'Limited quantity') + T('f.genset', 'Genset') + T('f.nor', 'Non-operating reefer') +
+              T('f.high_value', 'High value goods') + T('f.gdp', 'GDP', 'Good Distribution Practice') + T('f.secure_parking', 'Secure parking') +
+              T('f.bolt_seal', 'Bolt seal') + T('f.monitoring', 'Active monitoring') + T('f.tipping', 'Tipping') + T('f.abfall', 'Waste (Abfall)') +
+              T('f.hvo', 'HVO fuel') + T('f.digital_docs', 'Digital documents') + T('f.apcs', 'APCS') + T('f.portbase', 'Portbase') +
+            '</div></div>' +
+          '<div class="reefer" id="reefer"><div class="subhead">Reefer settings <span>required for reefer containers and Genset</span></div><div class="fields">' +
+            F('Temperature, °C', I('rf.temp', { type: 'number', step: 0.1, mono: 1 }), { req: 1, err: 'rf.temp', for: 'f-rf-temp' }) +
+            F('Vents', S('rf.vents', ref.vents), { for: 'f-rf-vents' }) + F('Drains', S('rf.drains', ['CLOSED', 'OPEN']), { for: 'f-rf-drains' }) +
+            F('Checklist', S('rf.checklist', ref.reeferChecklist.filter(Boolean)), { for: 'f-rf-checklist' }) +
+            F('Humidity, %', I('rf.humidity', { type: 'number', mono: 1 }), { for: 'f-rf-humidity' }) + F('Probes', I('rf.probes', { type: 'number', mono: 1 }), { for: 'f-rf-probes' }) +
+            F('O₂ / CO₂, %', '<div class="pair">' + I('rf.o2', { type: 'number', step: 0.1, aria: 'O2' }) + I('rf.co2', { type: 'number', step: 0.1, aria: 'CO2' }) + '</div>') +
+            F('Max. container age', I('rf.max_age', { ph: 'years' }), { for: 'f-rf-max_age' }) +
+            '<div class="fld s4"><div class="toggles">' + T('rf.precooled', 'Pre-cooled') + '</div></div>' +
+          '</div></div>' +
+        '</div>') +
+
+      sec('s-extras', 'Extras', 'Notes for the dispatcher and rail or barge legs',
+        '<div class="panel"><div class="fields">' +
+          F('Remarks', '<textarea class="textarea" name="remarks" rows="3" placeholder="Anything the dispatcher should know"></textarea>', { cls: 's4' }) +
+          '<details class="more s4"><summary>Rail or barge</summary><div class="fields" style="grid-template-columns:1fr 1fr;gap:20px">' +
+            ['pre', 'after'].map(function (k) {
+              var b = 'rail.' + k + '.';
+              return '<div class="fields" style="grid-template-columns:1fr 1fr">' +
+                '<div class="subhead s4" style="margin:0">' + (k === 'pre' ? 'Before the road leg' : 'After the road leg') + '</div>' +
+                F('Modality', S(b + 'modality', ['Rail', 'Barge'])) + F('Status', I(b + 'status')) +
+                F('Name', I(b + 'name')) + F(k === 'pre' ? 'Origin' : 'Destination', I(b + 'place')) +
+                F('T ref', I(b + 'tref', { mono: 1 })) + '<div class="fld"><label>&nbsp;</label><div class="toggles">' + T(b + 'pref', 'Preferred') + '</div></div>' +
+                F('Departure', '<div class="pair">' + I(b + 'dep_date', { type: 'date' }) + I(b + 'dep_time', { type: 'time', cls: 'w-time' }) + '</div>', { cls: 's2' }) +
+                F('Arrival', '<div class="pair">' + I(b + 'arr_date', { type: 'date' }) + I(b + 'arr_time', { type: 'time', cls: 'w-time' }) + '</div>', { cls: 's2' }) + '</div>';
+            }).join('') + '</div></details>' +
+        '</div></div>');
+
+    $('loc-codes').innerHTML = ref.locations.map(function (l) { return '<option value="' + l.code + '">' + esc(l.name + ', ' + l.city) + '</option>'; }).join('') +
+      JTMS.terminals.all().map(function (t) { return '<option value="' + t.code + '">' + esc(t.name + ', ' + t.city + ' ' + t.cc) + '</option>'; }).join('') +
+      JTMS.ports.main().map(function (p) { return '<option value="' + p.code + '">' + esc('Port ' + (p.en || p.name) + ', ' + p.cc) + '</option>'; }).join('');
+    $('dest-list').innerHTML = ref.destinations.map(function (d) { return '<option value="' + d + '">'; }).join('');
+
+    // ================= Чтение формы =================
+    function setPath(obj, path, val) { var p = path.split('.'), o = obj; for (var i = 0; i < p.length - 1; i++) o = o[p[i]] = o[p[i]] || {}; o[p[p.length - 1]] = val; }
+    function collect() {
+      var o = { ct: { type: '' } };
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (!el.name || el.closest('[data-row]')) return;
+        if (el.type === 'radio') { if (el.checked) setPath(o, el.name, el.value); return; }
+        var v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? (el.value === '' ? null : +el.value) : el.value.trim();
+        if (el.classList.contains('is-code') && typeof v === 'string') v = v.toUpperCase();
+        setPath(o, el.name, v);
+      });
+      o.container_no = iso.clean(o.container_no);
+      o.stops = state.stops.map(function (s) { return Object.assign({}, s, { code: (s.code || '').toUpperCase() }); });
+      o.articles = state.articles.map(function (a) { return Object.assign({}, a); });
+      return o;
+    }
+
+    // ================= Площадки =================
+    function findLoc(v) {
+      v = String(v || '').trim(); if (!v) return null;
+      var l = ref.location(v); if (l) return l;
+      var q = v.toLowerCase();
+      var own = ref.locations.find(function (x) { return (x.name + ' ' + x.city).toLowerCase().indexOf(q) >= 0; });
+      if (own) return own;
+      var tm = JTMS.terminals.berth(v);   // номер причала: 1742, 913, K869
+      if (tm) return ref.location(tm.code);
+      var p = JTMS.ports.find(v);   // порт по точному названию: Antwerp, Gdansk, Valencia…
+      if (p) return ref.location(p.code);
+      tm = JTMS.terminals.find(v);   // терминал по словам: ECT Delta, APM 2, Swissterminal Basel
+      return tm ? ref.location(tm.code) : null;
+    }
+    function applyLoc(p) {
+      var el = $(fid(p + '.code')), l = findLoc(el.value);
+      if (!l) { if (el.value.trim()) $('edit-' + p).classList.add('is-open'); return; }
+      el.value = l.code;
+      ['name', 'address', 'postal', 'city', 'country', 'area'].forEach(function (k) { var f = $(fid(p + '.' + k)); if (f) f.value = l[k] || ''; });
+    }
+    function locSummary(p, o) {
+      var d = o[p], l = ref.location(d.code), card = $('card-' + p), kind = $('kind-' + p);
+      var has = d.name || d.address || d.city;
+      card.classList.toggle('is-empty', !has);
+      card.innerHTML = has
+        ? '<div class="loc__name">' + esc(d.name || d.code) + '</div><div class="loc__addr">' + esc([d.address, [d.postal, d.city].filter(Boolean).join(' '), d.country].filter(Boolean).join(', ')) + '</div>'
+        : '<div class="loc__name">' + (d.code ? 'Unknown code — add the address' : 'Choose a location') + '</div><div class="loc__addr">Type a BPA code, terminal or port, e.g. ' + (p === 'pickup' ? 'MEDRANTW' : '1742 or ECT Delta') + '</div>';
+      kind.hidden = !l;
+      if (l) { kind.className = 'kind kind--' + l.kind; kind.textContent = { terminal: 'Terminal' + (l.lat != null ? ' · ' + l.lat.toFixed(4) + ', ' + l.lon.toFixed(4) + (l.approx ? ' (approx.)' : '') : ''), depot: 'Depot', client: 'Customer site', port: 'Port · ' + (l.lat != null ? l.lat.toFixed(3) + ', ' + l.lon.toFixed(3) : 'no coordinates') }[l.kind]; }
+    }
+    ['pickup', 'deliver'].forEach(function (p) {
+      $(fid(p + '.code')).addEventListener('change', function () { applyLoc(p); refresh(); });
+    });
+    form.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-edit]'); if (!b) return;
+      var box = $('edit-' + b.getAttribute('data-edit')); box.classList.toggle('is-open');
+      b.textContent = box.classList.contains('is-open') ? 'Hide address' : 'Edit address';
+    });
+
+    // ================= Остановки (погрузка / выгрузка) =================
+    var STOP_LABEL = { LADEN: 'Loading', LOSSEN: 'Unloading', STOP: 'Stop' };
+    function newStop() { return { type: 'LADEN', fix: false, disc: '', reference: '', date: '', hour: '', until: '', code: '', name: '', address: '', postal: '', place: '', country: 'DE', instructions: '', remarks: '' }; }
+    function sI(k, v, o) {
+      o = o || {};
+      return '<input class="input' + (o.mono ? ' input--mono' : '') + (o.code ? ' is-code' : '') + (o.cls ? ' ' + o.cls : '') + '" data-k="' + k + '" value="' + esc(v == null ? '' : v) + '"' +
+        (o.type ? ' type="' + o.type + '"' : '') + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.list ? ' list="' + o.list + '"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + '>';
+    }
+    function sF(label, ctl, cls) { return '<div class="fld' + (cls ? ' ' + cls : '') + '"><label>' + label + '</label>' + ctl + '</div>'; }
+    function renderStops() {
+      var n = state.stops.length;
+      $('stops').innerHTML = state.stops.map(function (s, i) {
+        var open = state.open[i], has = s.name || s.address || s.place;
+        return '<div class="node" data-row="' + i + '"><span class="node__pin">' + (i + 1) + '</span>' +
+          '<div class="node__head"><div class="seg2" role="group" aria-label="Stop type">' +
+            Object.keys(STOP_LABEL).map(function (k) { return '<button type="button" data-type="' + k + '" class="' + (s.type === k ? 'is-on' : '') + '">' + STOP_LABEL[k] + '</button>'; }).join('') + '</div>' +
+            '<label class="tog" title="Fixed appointment"><input type="checkbox" data-k="fix"' + (s.fix ? ' checked' : '') + '><span>Fixed time</span></label>' +
+            '<div class="node__tools">' + sI('reference', s.reference, { mono: 1, ph: 'Reference', aria: 'Reference' }) +
+              '<button type="button" class="icon-btn" data-move="-1" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '>' + ICON_UP + '</button>' +
+              '<button type="button" class="icon-btn" data-move="1" aria-label="Move down"' + (i === n - 1 ? ' disabled' : '') + '>' + ICON_DOWN + '</button>' +
+              '<button type="button" class="icon-btn" data-del aria-label="Remove stop">' + ICON_X + '</button></div></div>' +
+          '<div class="node__body">' +
+            '<div class="loc">' + sI('code', s.code, { code: 1, list: 'loc-codes', ph: 'Code, terminal or port', aria: 'Location code' }) +
+              '<div class="loc__card' + (has ? '' : ' is-empty') + '"><div class="loc__name">' + esc(has ? s.name || s.code : 'Choose a location') + '</div><div class="loc__addr">' +
+                esc(has ? [s.address, [s.postal, s.place].filter(Boolean).join(' '), s.country].filter(Boolean).join(', ') : 'Code fills the address, or enter it manually') + '</div></div>' +
+              '<button type="button" class="linkbtn" data-sedit>' + (open ? 'Hide address' : 'Edit address') + '</button></div>' +
+            '<div class="fields loc__edit' + (open ? ' is-open' : '') + '">' +
+              sF('Name <span class="req">*</span>', sI('name', s.name), 's2') + sF('Address', sI('address', s.address), 's2') +
+              sF('Postal code', sI('postal', s.postal, { mono: 1 })) + sF('Place <span class="req">*</span>', sI('place', s.place)) +
+              sF('Country', '<select class="select" data-k="country">' + ref.countries.map(function (c) { return '<option' + (c === s.country ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>') +
+              sF('Disc / conn', sI('disc', s.disc)) + '</div>' +
+            '<div class="fields">' +
+              sF('Date and time <span class="req">*</span>', '<div class="pair">' + sI('date', s.date, { type: 'date', aria: 'Date' }) + sI('hour', s.hour, { type: 'time', cls: 'w-time', aria: 'From' }) + sI('until', s.until, { type: 'time', cls: 'w-time', aria: 'Until' }) + '</div>', 's2') +
+              sF('Instructions', sI('instructions', s.instructions, { ph: 'e.g. container must be clean and dry' }), 's2') +
+            '</div><div class="node-err" data-serr="' + i + '"></div></div></div>';
+      }).join('');
+    }
+    $('stops').addEventListener('input', function (e) {
+      var k = e.target.getAttribute('data-k'); if (!k) return;
+      var s = state.stops[+e.target.closest('[data-row]').getAttribute('data-row')];
+      s[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      refresh();
+    });
+    $('stops').addEventListener('change', function (e) {
+      if (e.target.getAttribute('data-k') !== 'code') return;
+      var i = +e.target.closest('[data-row]').getAttribute('data-row'), s = state.stops[i], l = findLoc(e.target.value);
+      if (l) { s.code = l.code; s.name = l.name; s.address = l.address; s.postal = l.postal; s.place = l.city; s.country = l.country; }
+      else if (e.target.value.trim()) state.open[i] = true;
+      renderStops(); refresh();
+    });
+    $('stops').addEventListener('click', function (e) {
+      var row = e.target.closest('[data-row]'); if (!row) return;
+      var i = +row.getAttribute('data-row'), b;
+      if ((b = e.target.closest('[data-type]'))) { state.stops[i].type = b.getAttribute('data-type'); }
+      else if ((b = e.target.closest('[data-move]'))) {
+        var j = i + +b.getAttribute('data-move'), t = state.stops[i]; state.stops[i] = state.stops[j]; state.stops[j] = t;
+        var o = state.open[i]; state.open[i] = state.open[j]; state.open[j] = o;
+      }
+      else if (e.target.closest('[data-del]')) { state.stops.splice(i, 1); state.open = {}; }
+      else if (e.target.closest('[data-sedit]')) { state.open[i] = !state.open[i]; }
+      else return;
+      renderStops(); refresh();
+    });
+    $('stop-add').addEventListener('click', function () {
+      state.stops.push(newStop()); renderStops(); refresh();
+      var codes = $('stops').querySelectorAll('[data-k="code"]'); codes[codes.length - 1].focus();
+    });
+
+    // ================= Товары =================
+    var ART = [['amount', 1], ['colli'], ['code', 1], ['description'], ['gross', 1], ['seal', 1], ['un', 1], ['adr', 1], ['pack', 1], ['adr_text'], ['ata', 1], ['doc_no', 1]];
+    function newArt() { var a = {}; ART.forEach(function (c) { a[c[0]] = ''; }); return a; }
+    function renderArts() {
+      $('arts').innerHTML = state.articles.length ? state.articles.map(function (a, i) {
+        return '<tr data-row="' + i + '">' + ART.map(function (c) {
+          var num = c[0] === 'amount' || c[0] === 'gross';
+          return '<td>' + sI(c[0], a[c[0]], { mono: c[1], type: num ? 'number' : '', aria: c[0] }) + '</td>';
+        }).join('') + '<td><button type="button" class="icon-btn" data-adel aria-label="Remove article">' + ICON_X + '</button></td></tr>';
+      }).join('') : '<tr><td colspan="13" class="muted-empty">No articles yet. Add them if the customer sent a packing list or the cargo is ADR.</td></tr>';
+    }
+    $('arts').addEventListener('input', function (e) {
+      var k = e.target.getAttribute('data-k'); if (!k) return;
+      var a = state.articles[+e.target.closest('[data-row]').getAttribute('data-row')];
+      a[k] = e.target.type === 'number' ? (e.target.value === '' ? null : +e.target.value) : e.target.value; refresh();
+    });
+    $('arts').addEventListener('click', function (e) {
+      if (!e.target.closest('[data-adel]')) return;
+      state.articles.splice(+e.target.closest('[data-row]').getAttribute('data-row'), 1); renderArts(); refresh();
+    });
+    $('art-add').addEventListener('click', function () { state.articles.push(newArt()); renderArts(); refresh(); $('arts').querySelector('tr:last-child input').focus(); });
+
+    // ================= Проверки =================
+    function kindOf(code) { var l = ref.location(code); return l ? l.kind : ''; }
+    function isInbound(o) { return ref.isPortLike(kindOf(o.pickup.code)); }
+    function isOutbound(o) { return ref.isPortLike(kindOf(o.deliver.code)) && !isInbound(o); }
+    function isReefer(o) { var t = ref.ctype(o.ct.type); return !!(t && t.reefer) || o.ct.group === 'GENSET' || o.f.genset; }
+
+    function validate(o) {
+      var r = { fields: {}, stops: {}, list: [] };
+      function err(k, t) { if (k) r.fields[k] = t; r.list.push({ level: 'err', text: t, k: k }); }
+      function sErr(i, t) { (r.stops[i] = r.stops[i] || []).push(t); r.list.push({ level: 'err', text: 'Stop ' + (i + 1) + ': ' + t, stop: i }); }
+      function warn(t, k) { r.list.push({ level: 'warn', text: t, k: k }); }
+
+      if (!o.customer) err('customer', 'Choose a customer');
+      if (!o.booking) err('booking', 'Enter the booking number');
+      if (!o.shipping_line) err('shipping_line', 'Choose a shipping company');
+      if (!o.ct.type) err('ct.type', 'Choose a container type');
+      if (!o.pickup.code && !o.pickup.name) err('pickup.code', 'Choose a pick-up location');
+      if (!o.deliver.code && !o.deliver.name) err('deliver.code', 'Choose a delivery location');
+
+      if (o.container_no) {
+        var v = iso.validate(o.container_no), open = JTMS.store.openContainers(state.editId);
+        if (!v.ok) err('container_no', 'Container number: ' + v.msg.charAt(0).toLowerCase() + v.msg.slice(1));
+        else if (open[o.container_no]) warn('This container is already in open order ' + open[o.container_no], 'container_no');
+      } else if (isInbound(o)) warn('Inbound order has no container number yet', 'container_no');
+
+      if (!o.stops.length) r.list.push({ level: 'err', text: 'Add at least one loading or unloading stop', k: 'stop-add' });
+      o.stops.forEach(function (s, i) {
+        if (!s.date) sErr(i, 'add the date');
+        if (!s.name) sErr(i, 'add the location name');
+        if (!s.place) sErr(i, 'add the place');
+        if (s.hour && s.until && s.until <= s.hour) sErr(i, 'end time is before start time');
+        if (o.deliver.closing_date && s.date && (s.date + (s.hour || '00:00')) >= (o.deliver.closing_date + (o.deliver.closing_time || '23:59'))) sErr(i, 'is after closing');
+      });
+      if (isOutbound(o) && !o.deliver.closing_date) warn('Outbound order has no closing date', 'deliver.closing_date');
+      if (o.pickup.f_dem_start && o.stops.some(function (s) { return s.date && s.date > o.pickup.f_dem_start; }))
+        warn('A stop is after demurrage starts', 'pickup.f_dem_start');
+
+      if (isReefer(o) && o.rf.temp == null) err('rf.temp', 'Set the reefer temperature');
+      if (o.f.adr && !o.articles.some(function (a) { return a.un; })) err('articles', 'ADR is on: add the UN number to an article');
+      o.articles.forEach(function (a, i) { if (a.un && !/^\d{4}$/.test(a.un)) err('articles', 'Article ' + (i + 1) + ': UN number has 4 digits'); });
+      var t = ref.ctype(o.ct.type), gross = o.articles.reduce(function (s, a) { return s + (+a.gross || 0); }, 0) + (o.tare_kg || 0);
+      if (t && gross > t.maxGrossKg) err('articles', 'Gross with tare is ' + gross.toLocaleString('en-GB') + ' kg, max for ' + t.id + ' is ' + t.maxGrossKg.toLocaleString('en-GB') + ' kg');
+      return r;
+    }
+
+    // ================= Перерисовка =================
+    function fmtD(d, h) { if (!d) return ''; var p = d.split('-'); return p[2] + '.' + p[1] + (h ? ' ' + h : ''); }
+    function refresh() {
+      var o = collect(), v = validate(o), show = state.tried;
+
+      document.querySelectorAll('[data-err]').forEach(function (el) {
+        var k = el.getAttribute('data-err'), msg = show ? v.fields[k] || '' : '';
+        if (k === 'container_no' && o.container_no && !iso.validate(o.container_no).ok) msg = v.fields[k];
+        el.textContent = msg;
+        var input = $(fid(k)); if (input) input.classList.toggle('is-error', !!msg);
+      });
+      document.querySelectorAll('[data-serr]').forEach(function (el) {
+        var i = el.getAttribute('data-serr'); el.textContent = show && v.stops[i] ? v.stops[i].join(' · ') : '';
+      });
+      locSummary('pickup', o); locSummary('deliver', o);
+
+      // номер контейнера
+      var cs = $('cnum-state');
+      if (!o.container_no) cs.innerHTML = '';
+      else { var iv = iso.validate(o.container_no); cs.innerHTML = iv.ok ? '<span class="badge badge--ok">Valid</span>' : '<span class="badge badge--err">' + (iv.code === 'check' ? 'Check digit' : 'Format') + '</span>'; }
+
+      $('reefer').classList.toggle('is-on', isReefer(o));
+      var gross = o.articles.reduce(function (s, a) { return s + (+a.gross || 0); }, 0);
+      $('art-total').textContent = gross ? gross.toLocaleString('en-GB') + ' kg gross' + (o.tare_kg ? ', ' + (gross + o.tare_kg).toLocaleString('en-GB') + ' kg with tare' : '') : '';
+
+      // сводка
+      var t = ref.ctype(o.ct.type);
+      $('t-cnt').className = 'ticket__cnt' + (o.container_no ? '' : ' is-empty');
+      $('t-cnt').textContent = o.container_no ? o.container_no.slice(0, 4) + ' ' + o.container_no.slice(4, 10) + ' ' + o.container_no.slice(10) : 'Number not set';
+      var trk = ref.truck(o.truck);
+      $('t-meta').textContent = [t ? t.label.split(' · ')[1] : '', o.ct.group, trk ? 'truck ' + trk.fleet + ' (' + trk.plate + ')' : '', isReefer(o) && o.rf.temp != null ? o.rf.temp + ' °C' : '', o.shipping_line, o.customer].filter(Boolean).join(', ') || 'Fill in the booking';
+      var rows = [];
+      rows.push('<div class="rt"><span class="rt__dot"></span><div><div class="rt__code">' + esc(o.pickup.code || '—') + '</div><div class="rt__sub">Pick up' + (o.pickup.date ? ', ' + fmtD(o.pickup.date, o.pickup.time_from) : '') + '</div></div></div>');
+      o.stops.forEach(function (s) {
+        rows.push('<div class="rt"><span class="rt__dot"></span><div><div class="rt__code">' + esc(s.code || s.place || '—') + '</div><div class="rt__sub">' + STOP_LABEL[s.type] + (s.date ? ', ' + fmtD(s.date, s.hour) : '') + (s.place && s.code ? ', ' + esc(s.place) : '') + '</div></div></div>');
+      });
+      rows.push('<div class="rt rt--end"><span class="rt__dot"></span><div><div class="rt__code">' + esc(o.deliver.code || '—') + '</div><div class="rt__sub">Deliver' + (o.deliver.date ? ', ' + fmtD(o.deliver.date, o.deliver.time_from) : '') + '</div>' +
+        (o.deliver.closing_date ? '<div class="rt__dead">Closing ' + fmtD(o.deliver.closing_date, o.deliver.closing_time) + '</div>' : '') + '</div></div>');
+      $('t-route').innerHTML = rows.join('');
+
+      var errs = v.list.filter(function (x) { return x.level === 'err'; }), warns = v.list.filter(function (x) { return x.level === 'warn'; });
+      var list = show ? v.list : warns;
+      var title = show && errs.length ? '<span class="dot" style="background:var(--neg)"></span>' + errs.length + (errs.length === 1 ? ' thing to fix' : ' things to fix')
+        : warns.length ? '<span class="dot" style="background:var(--warn)"></span>' + warns.length + (warns.length === 1 ? ' warning' : ' warnings')
+        : '<span class="dot" style="background:var(--pos)"></span>' + (show ? 'Ready to create' : 'No warnings');
+      $('t-checks').innerHTML = '<div class="checks__title">' + title + '</div>' + (list.length ? '<ul>' + list.map(function (x) {
+        return '<li class="is-' + x.level + '" data-go="' + (x.k || '') + '" data-gostop="' + (x.stop != null ? x.stop : '') + '">' + esc(x.text) + '</li>';
+      }).join('') + '</ul>' : '');
+      return v;
+    }
+    form.addEventListener('input', function (e) { if (!e.target.closest('[data-row]')) refresh(); });
+    form.addEventListener('change', function (e) {
+      if (e.target.id === 'f-container_no') { var v = iso.validate(e.target.value); if (v.ok) e.target.value = v.value.slice(0, 4) + ' ' + v.value.slice(4, 10) + ' ' + v.value[10]; }
+      if (!e.target.closest('[data-row]')) refresh();
+    });
+    $('t-checks').addEventListener('click', function (e) {
+      var li = e.target.closest('li'); if (!li) return;
+      var k = li.getAttribute('data-go'), st = li.getAttribute('data-gostop'), el = null;
+      if (st !== '') el = $('stops').querySelector('[data-row="' + st + '"]');
+      else if (k === 'ct.type') el = form.querySelector('input[name="ct.type"]');
+      else if (k) el = $(fid(k)) || $(k);
+      if (!el) return;
+      el.scrollIntoView({ block: 'center' });
+      var f = el.matches('input,select,button') ? el : el.querySelector('input,select'); if (f) f.focus({ preventScroll: true });
+    });
+
+    // Подсветка раздела в шапке
+    var secs = ['s-booking', 's-container', 's-route', 's-cargo', 's-extras'];
+    function spy() {
+      var cur = secs[0];
+      secs.forEach(function (id) { if ($(id).getBoundingClientRect().top < 140) cur = id; });
+      document.querySelectorAll('#jump a').forEach(function (a) { a.classList.toggle('is-on', a.getAttribute('href') === '#' + cur); });
+    }
+    window.addEventListener('scroll', spy, { passive: true });
+
+    // ================= Сохранение =================
+    function toast(msg, isErr) {
+      var t = document.createElement('div'); t.className = 'toast' + (isErr ? ' toast--err' : ''); t.textContent = msg;
+      $('toasts').appendChild(t); setTimeout(function () { t.remove(); }, 4000);
+    }
+    function submit() {
+      state.tried = true;
+      var v = refresh();
+      if (v.list.some(function (x) { return x.level === 'err'; })) { toast('Fix the highlighted fields to create the order', true); return; }
+      try {
+        var o = state.editId ? JTMS.store.update(state.editId, collect()) : JTMS.store.create(collect());
+        try { sessionStorage.setItem('jtms.flash', JSON.stringify({ id: o.id, text: (state.editId ? 'Saved order ' : 'Created order ') + o.file_nr })); } catch (e) { /* без подсветки */ }
+        location.href = 'orders.html';
+      } catch (e) { toast(e.message, true); }
+    }
+    function resetForm() {
+      form.reset();
+      document.querySelectorAll('.loc__edit.is-open').forEach(function (x) { x.classList.remove('is-open'); });
+      document.querySelectorAll('[data-edit]').forEach(function (b) { b.textContent = 'Edit address'; });
+      state.tried = false; state.stops = [newStop()]; state.articles = []; state.open = {};
+      renderStops(); renderArts(); refresh();
+      window.scrollTo(0, 0);
+    }
+    function renderRecent() {
+      var list = JTMS.store.list().slice(0, 5);
+      $('recent').innerHTML = '<h3>Latest orders</h3>' + (list.length ? '<ul>' + list.map(function (o) {
+        return '<li><b>' + esc(o.file_nr) + '</b><span>' + esc(o.customer) + '</span></li>';
+      }).join('') + '</ul><a href="orders.html" style="color:var(--blue);font-weight:600;text-decoration:none;display:inline-block;margin-top:6px">All orders</a>' : '<div style="color:var(--ink-2)">Nothing yet. New orders appear here.</div>');
+    }
+
+    function getPath(obj, path) { return path.split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
+    function fill(o) {
+      resetForm();
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (!el.name || el.closest('[data-row]')) return;
+        var v = getPath(o, el.name);
+        if (el.type === 'radio') el.checked = el.value === v;
+        else if (el.type === 'checkbox') el.checked = !!v;
+        else if (v != null) el.value = v;
+      });
+      if (o.container_no && o.container_no.length === 11) $('f-container_no').value = o.container_no.slice(0, 4) + ' ' + o.container_no.slice(4, 10) + ' ' + o.container_no[10];
+      state.stops = (o.stops || []).map(function (x) { return Object.assign(newStop(), x); });
+      if (!state.stops.length) state.stops = [newStop()];
+      state.articles = (o.articles || []).map(function (x) { return Object.assign(newArt(), x); });
+      renderStops(); renderArts(); refresh();
+    }
+
+    // Пример из BPA: Genset-реф, депо → погрузка в Гернсхайме → терминал 1742
+    function demo() {
+      resetForm();
+      var set = function (n, v) { var el = $(fid(n)); if (!el) return; if (el.type === 'checkbox') el.checked = v; else el.value = v; };
+      set('customer', 'JAS FORWARDING GmbH'); set('booking', '42697773'); set('employee', 'wiktoria'); set('shipping_line', 'MSC');
+      set('client_ref', 'S610514380'); set('km', 872.82);
+      form.querySelector('input[name="ct.type"][value="45R1"]').checked = true; set('ct.group', 'GENSET');
+      set('pickup.code', 'MEDRANTW'); applyLoc('pickup'); set('pickup.ref', '459IHA1708569');
+      set('deliver.code', '1742ANTW'); applyLoc('deliver'); set('deliver.ref', '459IHA1708569');
+      set('deliver.closing_date', '2026-11-25'); set('deliver.closing_time', '04:00'); set('deliver.vessel', 'MSC MARIA SAVERIA'); set('deliver.destination', 'JEDDAH');
+      set('f.genset', true); set('f.gdp', true);
+      set('rf.vents', 'CLOSED'); set('rf.drains', 'CLOSED'); set('rf.temp', 20); set('rf.precooled', true); set('rf.humidity', 0); set('rf.checklist', 'GTS LIST');
+      state.stops = [Object.assign(newStop(), { type: 'LADEN', fix: true, reference: '60298702', date: '2026-11-24', hour: '10:00', code: 'FRESGERN',
+        name: 'FRESENIUS MEDICAL CARE', address: 'MARIE CURIE STRASSE 1A', postal: '64579', place: 'GERNSHEIM', country: 'DE',
+        instructions: 'Container must be clean, dry and odourless' })];
+      state.articles = [Object.assign(newArt(), { code: 'PHAGOODS', description: 'PHARMA GOODS', gross: 10000 })];
+      renderStops(); renderArts(); refresh();
+    }
+
+    $('save').addEventListener('click', submit);
+    $('reset').addEventListener('click', resetForm);
+    $('demo').addEventListener('click', demo);
+    document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submit(); } });
+
+    resetForm(); renderRecent(); spy();
+    var mode = readMode(), src = mode && JTMS.store.get(mode.id);
+    if (src) {
+      fill(src);
+      if (mode.mode === 'edit') {
+        state.editId = src.id;
+        $('save').innerHTML = 'Save changes <kbd>Ctrl ↵</kbd>';
+        $('mode-label').textContent = 'Editing File Nr ' + src.file_nr;
+        $('nav-new').classList.remove('is-on');
+        document.title = 'Order ' + src.file_nr + ' — Hyperion TMS';
+      } else {
+        $('f-container_no').value = ''; state.stops.forEach(function (x) { x.date = ''; x.hour = ''; x.until = ''; }); renderStops();
+        $('mode-label').textContent = 'Copy of File Nr ' + src.file_nr;
+        refresh();
+      }
+    }
+  })();
+  </script>
+</body>
+</html>

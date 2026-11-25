@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <!-- Стартовая страница сайта (GitHub Pages, Cloudflare Pages): ведёт на Orders, а с #driver — в приложение водителя -->
+  <script>location.replace(location.hash === '#driver' ? 'driver.html' : 'orders.html');</script>
+  <meta http-equiv="refresh" content="0; url=orders.html">
+</head>
+<body>
+  <p><a href="orders.html">Open Hyperion TMS</a> · <a href="driver.html">Driver app</a></p>
+</body>
+</html>

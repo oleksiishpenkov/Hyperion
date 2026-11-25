@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0A1B4D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Hyperion Driver</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="apple-touch-icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Приложение водителя: телефон, крупные кнопки, читается на солнце ---------- */
+    html, body { background: #E9EEF5; }
+    body { font-size: 16px; color: var(--ink); -webkit-tap-highlight-color: transparent; }
+    .phone { max-width: 460px; min-height: 100vh; margin: 0 auto; background: var(--harbour); display: flex; flex-direction: column; position: relative; }
+    @media (min-width: 600px) { .phone { box-shadow: 0 0 0 1px var(--line), 0 20px 60px rgba(10, 27, 77, .12); } }
+
+    .bar { background: var(--navy); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 18px 14px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 5; }
+    .bar img { height: 18px; width: auto; flex-shrink: 0; }
+    .bar .who { margin-left: auto; text-align: right; line-height: 1.25; }
+    .bar .who { min-width: 0; }
+    .bar .who b { display: block; font-family: var(--font-code); font-size: 14px; white-space: nowrap; }
+    .bar .who span { font-size: 13px; color: #B9C6E4; white-space: nowrap; }
+    .bar .back { border: 0; background: rgba(255, 255, 255, .12); color: #fff; height: 38px; padding: 0 14px; border-radius: 10px; font-size: 16px; font-weight: 600; }
+    .bar .ttl { font-size: 17px; font-weight: 700; }
+    .lang { border: 1px solid rgba(255, 255, 255, .35); background: none; color: #fff; height: 32px; padding: 0 10px; border-radius: 8px; font-weight: 700; font-size: 13px; }
+    .main { flex: 1; padding: 16px 16px 120px; }
+    h2 { font-size: 15px; font-weight: 600; color: var(--ink-2); margin: 18px 4px 8px; }
+    h2:first-child { margin-top: 2px; }
+
+    /* выбор машины */
+    .pick { display: flex; flex-direction: column; gap: 8px; }
+    .pick button { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 16px; background: #fff; border: 1px solid var(--line); border-radius: 14px; text-align: left; font: inherit; color: var(--ink); }
+    .pick button:active { background: var(--blue-soft); }
+    .pick .fl { font-family: var(--font-code); font-weight: 600; font-size: 16px; min-width: 82px; }
+    .pick .nm { font-size: 16px; }
+    .pick .pl { margin-left: auto; white-space: nowrap; font-family: var(--font-code); color: var(--ink-3); font-size: 13px; }
+
+    /* сводка дня */
+    .day { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; gap: 18px; }
+    .day div { display: flex; flex-direction: column; }
+    .day b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .day span { font-size: 13px; color: var(--ink-2); }
+
+    /* карточка работы */
+    .job { display: block; width: 100%; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; font: inherit; color: var(--ink); position: relative; }
+    .job:active { background: #F7F9FD; }
+    .job.is-next { border: 2px solid var(--blue); padding: 13px 15px; }
+    .job.is-live { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .job.is-done { opacity: .6; }
+    .job .tag { position: absolute; top: 12px; right: 14px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); }
+    .job.is-live .tag { background: var(--cyan); color: var(--navy); }
+    .job.is-done .tag { background: var(--harbour); color: var(--ink-2); }
+    .job .time { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .job .pts { margin-top: 8px; display: grid; grid-template-columns: 12px 1fr; gap: 0 10px; }
+    .job .d { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; margin-top: 6px; opacity: .7; }
+    .job .d--to { background: currentColor; }
+    .job .v { width: 2px; height: 12px; background: currentColor; opacity: .25; margin: 1px auto; }
+    .job .p { font-size: 16px; font-weight: 600; line-height: 1.35; }
+    .job .p small { display: block; font-weight: 400; font-size: 13.5px; opacity: .75; }
+    .job .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 14px; opacity: .85; }
+    .job .cn { font-family: var(--font-code); font-weight: 600; }
+    .flag { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 6px; font-size: 12px; font-weight: 700; background: var(--signal-soft); color: #8A3207; }
+    .main > .note { margin: 0 0 12px; }
+    .stops .st { display: grid; grid-template-columns: 18px 1fr; gap: 10px; position: relative; padding-bottom: 14px; }
+    .stops .st:last-child { padding-bottom: 0; }
+    .stops .st::before { content: ''; position: absolute; left: 7px; top: 16px; bottom: 0; width: 2px; background: var(--line); }
+    .stops .st:last-child::before { display: none; }
+    .stops .sd { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--ink-3); background: #fff; margin-top: 3px; position: relative; z-index: 1; }
+    .stops .st.is-done .sd { background: var(--pos); border-color: var(--pos); }
+    .stops .st.is-now .sd { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(10, 91, 245, .18); }
+    .stops .st.is-done { opacity: .62; }
+    .stops .sk { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+    .stops .st.is-now .sk { color: var(--blue); }
+    .stops .sn { font-size: 16.5px; font-weight: 700; }
+    .stops .sa { font-size: 14px; color: var(--ink-2); }
+    .newbar { background: var(--blue); color: #fff; border-radius: 14px; padding: 12px 16px; margin-top: 12px; font-size: 15px; }
+    .newbar b { font-size: 18px; }
+    .job.is-new { border: 2px solid var(--signal); padding: 13px 15px; }
+    .job.is-new .tag { background: var(--signal); color: #fff; }
+    .none { background: #fff; border: 1px dashed var(--line); border-radius: 16px; padding: 22px 18px; text-align: center; color: var(--ink-2); }
+
+    /* экран работы */
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
+    .step { display: flex; gap: 6px; margin-bottom: 12px; }
+    .step i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+    .step i.on { background: var(--blue); }
+    .big { font-size: 22px; font-weight: 700; line-height: 1.25; }
+    .addr { font-size: 15px; color: var(--ink-2); margin-top: 2px; }
+    .row2 { display: flex; gap: 8px; margin-top: 12px; }
+    .navbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; border-radius: 12px; background: var(--blue-soft); color: var(--blue); font-weight: 700; font-size: 16px; text-decoration: none; }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 15.5px; }
+    .kv dt { color: var(--ink-2); }
+    .kv dd { font-weight: 600; word-break: break-word; }
+    .cnbig { font-family: var(--font-code); font-size: 24px; font-weight: 600; letter-spacing: .02em; }
+    .copy { border: 0; background: none; color: var(--blue); font-weight: 600; font-size: 14px; padding: 0 0 0 8px; }
+    .note { background: #FFF8E6; border: 1px solid #F3DFA8; border-radius: 12px; padding: 10px 12px; font-size: 15px; margin-top: 10px; }
+    .note b { display: block; font-size: 13px; color: #7A5A00; margin-bottom: 2px; }
+    .danger { background: var(--signal-soft); border-color: #F4C3A6; }
+    .danger b { color: #8A3207; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .field label { font-size: 14px; color: var(--ink-2); font-weight: 600; }
+    .field input, .field textarea { height: 52px; border: 1.5px solid var(--line); border-radius: 12px; padding: 0 14px; font-size: 18px; background: #fff; color: var(--ink); }
+    .field input.code { font-family: var(--font-code); text-transform: uppercase; letter-spacing: .04em; }
+    .field textarea { height: 90px; padding: 12px 14px; font-size: 16px; font-family: inherit; resize: vertical; }
+    .field input:focus, .field textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .15); }
+    .field .msg { font-size: 14px; }
+    .field .msg.ok { color: var(--pos); } .field .msg.bad { color: var(--neg); }
+    .sbtn { height: 46px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; font-weight: 700; font-size: 15px; color: var(--ink); }
+    .ftypes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+    .ftypes button { height: 46px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; font-size: 15px; font-weight: 700; color: var(--ink-2); }
+    .ftypes button.is-on { border-color: var(--navy); background: var(--navy); color: #fff; }
+    .addf { margin-top: 8px; display: flex; align-items: center; justify-content: center; height: 54px; border-radius: 14px; border: 1.5px dashed var(--blue); color: var(--blue); font-size: 16.5px; font-weight: 700; cursor: pointer; background: var(--blue-soft); }
+    .hint3 { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
+    .photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .photos figure { position: relative; margin: 0; }
+    .photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); display: block; }
+    .photos figcaption { font-size: 10.5px; font-family: var(--font-code); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 3px; }
+    .ftag { position: absolute; top: 5px; left: 5px; font-size: 10.5px; font-weight: 800; padding: 1px 5px; border-radius: 4px; }
+    .ftag--CMR { background: var(--navy); color: #fff; } .ftag--CHECKLIST { background: var(--signal); color: #fff; } .ftag--PIC { background: #fff; color: var(--ink); }
+    .addph { width: 84px; height: 84px; border-radius: 10px; border: 1.5px dashed var(--ink-3); display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--ink-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+    .addph b { font-size: 26px; line-height: 1; }
+    .log { font-size: 14px; color: var(--ink-2); }
+    .log div { padding: 6px 0; border-top: 1px solid #EEF1F6; display: flex; gap: 10px; }
+    .log div:first-child { border-top: 0; }
+    .log b { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 44px; }
+
+    /* нижняя кнопка действия */
+    .dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 460px; padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px); background: linear-gradient(to top, var(--harbour) 70%, rgba(243, 246, 250, 0)); display: flex; gap: 10px; z-index: 6; }
+    .act { flex: 1; height: 60px; border: 0; border-radius: 16px; background: var(--blue); color: #fff; font-size: 17px; line-height: 1.2; padding: 0 12px; font-weight: 700; box-shadow: 0 6px 18px rgba(10, 91, 245, .3); }
+    .act:active { background: var(--blue-hover); }
+    .act--done { background: var(--pos); box-shadow: 0 6px 18px rgba(21, 128, 61, .3); }
+    .prob { width: 60px; height: 60px; border-radius: 16px; border: 1.5px solid #F4C3A6; background: #fff; color: var(--signal); font-size: 24px; font-weight: 800; }
+
+    /* лист «проблема» */
+    .sheet-bg { position: fixed; inset: 0; background: rgba(10, 27, 77, .45); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+    .sheet { width: 100%; max-width: 460px; background: #fff; border-radius: 20px 20px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom) + 16px); max-height: 88vh; overflow-y: auto; }
+    .sheet h3 { font-size: 19px; margin-bottom: 12px; }
+    .reasons { display: flex; flex-direction: column; gap: 8px; }
+    .reasons button { min-height: 54px; text-align: left; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; font-size: 16.5px; font-weight: 600; color: var(--ink); }
+    .reasons button.is-on { border-color: var(--signal); background: var(--signal-soft); }
+    .sheet .acts { display: flex; gap: 10px; margin-top: 14px; }
+    .sheet .acts button { flex: 1; height: 54px; border-radius: 14px; font-size: 17px; font-weight: 700; border: 1.5px solid var(--line); background: #fff; color: var(--ink); }
+    .sheet .acts .send { background: var(--signal); border-color: var(--signal); color: #fff; }
+    .toast { left: 50%; transform: translateX(-50%); right: auto; bottom: 96px; }
+    .toasts { left: 0; right: 0; bottom: 96px; display: flex; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <header class="bar" id="bar"></header>
+    <main class="main" id="main"></main>
+  </div>
+  <div id="dock"></div>
+  <div id="sheet"></div>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="assets/ports.js"></script>
+  <script src="assets/terminals.js"></script>
+  <script src="assets/ref.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/samples.js"></script>
+  <script src="assets/routing.js"></script>
+  <script src="assets/geo.js"></script>
+  <script src="assets/timing.js"></script>
+  <script src="assets/link.js"></script>
+  <script>
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var ref = JTMS.ref, store = JTMS.store, iso = JTMS.iso6346;
+    function get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+    function put(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+    var S = { truck: get('jtms.driver.truck', ''), lang: get('jtms.driver.lang', 'en'), view: 'list', job: null, ftype: 'CMR' };
+
+    // ---------- языки: английский и польский ----------
+    var T = {
+      en: { pick: 'Choose your truck', today: 'Today', tomorrow: 'Tomorrow', jobs: 'jobs', km: 'km', hours: 'hours', next: 'Next', live: 'Now', done: 'Done', planned: 'Planned',
+        none: 'No jobs for today. Dispatch will send them here.', from: 'From', to: 'To', container: 'Container', notknown: 'not known yet', booking: 'Booking', pin: 'PIN / pick-up ref', ref: 'Reference',
+        slot: 'Slot', closing: 'Closing', vessel: 'Vessel', type: 'Type', seal: 'Seal', weight: 'Gross weight', reefer: 'Reefer', adr: 'ADR', instr: 'Instructions', remarks: 'Remarks',
+        start: 'Start driving', arrived: 'Arrived at ', loaded: 'Loaded, continue', unloaded: 'Unloaded, continue', handed: 'Container delivered', picked: 'Done here, continue',
+        nav: 'Navigate', copy: 'Copy', copied: 'Copied', cnenter: 'Container number', sealenter: 'Seal number', save: 'Save', cnok: 'Check digit OK', photos: 'Documents and photos', addph: 'Photo', ft_CMR: 'CMR', ft_CHECKLIST: 'Checklist', ft_PIC: 'Photo', addf: 'Take photo: ', pickt: 'Choose what you are photographing, then take the photo. The file is signed with this type.', saving: 'Saving…',
+        problem: 'Report a problem', send: 'Send to dispatch', cancel: 'Cancel', note: 'Note for dispatch (optional)', sent: 'Sent to dispatch', history: 'What happened',
+        r_wait: 'Waiting at terminal or customer', r_traffic: 'Traffic jam, I will be late', r_damage: 'Container damaged', r_wrong: 'Wrong or missing container', r_docs: 'Documents missing', r_truck: 'Truck breakdown', r_other: 'Other',
+        change: 'Change truck', leg: 'Job', of: 'of', planfor: 'Planned', eta: 'ETA', full: 'Full', empty: 'Empty', back: 'Back', alldone: 'All jobs for today are done. Thank you!',
+        ev_start: 'Started driving', ev_arrive: 'Arrived', ev_done: 'Finished', ev_problem: 'Problem', ev_photo: 'Photo added', ev_cn: 'Container number entered', open: 'Open problem: ',
+        ev_sent: 'Sent by dispatch', ev_recall: 'Taken back by dispatch', ev_ack: 'Accepted', tag_new: 'New', tag_upd: 'Updated', startjob: 'Start job: drive to ', pickedup: 'Container picked up', ev_picked: 'Container picked up', k_pickup: 'Pick-up', k_load: 'Loading', k_unload: 'Unloading', k_stop: 'Stop', k_drop: 'Drop-off', newjobs: 'new or changed job(s) from dispatch. Open and accept.',
+        accept: 'Accept job', gotit: 'Got it, accept changes', accepted: 'Accepted', fromdisp: 'From dispatch', newtoast: 'New job from dispatch', updbanner: 'Dispatch changed this job. Check the times and accept.' },
+      pl: { pick: 'Wybierz swój ciągnik', today: 'Dzisiaj', tomorrow: 'Jutro', jobs: 'zleceń', km: 'km', hours: 'godz.', next: 'Następne', live: 'Teraz', done: 'Gotowe', planned: 'Zaplanowane',
+        none: 'Brak zleceń na dziś. Dyspozytor wyśle je tutaj.', from: 'Skąd', to: 'Dokąd', container: 'Kontener', notknown: 'jeszcze nieznany', booking: 'Booking', pin: 'PIN / ref. odbioru', ref: 'Referencja',
+        slot: 'Okno', closing: 'Closing', vessel: 'Statek', type: 'Typ', seal: 'Plomba', weight: 'Waga brutto', reefer: 'Chłodnia', adr: 'ADR', instr: 'Instrukcje', remarks: 'Uwagi',
+        start: 'Rozpocznij jazdę', arrived: 'Jestem na miejscu: ', loaded: 'Załadowany, dalej', unloaded: 'Rozładowany, dalej', handed: 'Kontener oddany', picked: 'Gotowe, dalej',
+        nav: 'Nawigacja', copy: 'Kopiuj', copied: 'Skopiowano', cnenter: 'Numer kontenera', sealenter: 'Numer plomby', save: 'Zapisz', cnok: 'Cyfra kontrolna OK', photos: 'Dokumenty i zdjęcia', addph: 'Zdjęcie', ft_CMR: 'CMR', ft_CHECKLIST: 'Checklista', ft_PIC: 'Zdjęcie', addf: 'Zrób zdjęcie: ', pickt: 'Wybierz, co fotografujesz, potem zrób zdjęcie. Plik zostanie podpisany tym typem.', saving: 'Zapisuję…',
+        problem: 'Zgłoś problem', send: 'Wyślij do dyspozytora', cancel: 'Anuluj', note: 'Wiadomość dla dyspozytora (opcjonalnie)', sent: 'Wysłano do dyspozytora', history: 'Historia',
+        r_wait: 'Czekam na terminalu lub u klienta', r_traffic: 'Korek, spóźnię się', r_damage: 'Kontener uszkodzony', r_wrong: 'Zły kontener lub brak kontenera', r_docs: 'Brak dokumentów', r_truck: 'Awaria ciągnika', r_other: 'Inne',
+        change: 'Zmień ciągnik', leg: 'Zlecenie', of: 'z', planfor: 'Plan', eta: 'Przyjazd', full: 'Pełny', empty: 'Pusty', back: 'Wstecz', alldone: 'Wszystkie dzisiejsze zlecenia wykonane. Dziękujemy!',
+        ev_start: 'Start jazdy', ev_arrive: 'Na miejscu', ev_done: 'Zakończono', ev_problem: 'Problem', ev_photo: 'Dodano zdjęcie', ev_cn: 'Wpisano numer kontenera', open: 'Otwarty problem: ',
+        ev_sent: 'Wysłane przez dyspozytora', ev_recall: 'Wycofane przez dyspozytora', ev_ack: 'Przyjęte', tag_new: 'Nowe', tag_upd: 'Zmiana', startjob: 'Start zlecenia: jedź do ', pickedup: 'Kontener odebrany', ev_picked: 'Kontener odebrany', k_pickup: 'Odbiór', k_load: 'Załadunek', k_unload: 'Rozładunek', k_stop: 'Postój', k_drop: 'Zdanie', newjobs: 'nowe lub zmienione zlecenia od dyspozytora. Otwórz i przyjmij.',
+        accept: 'Przyjmij zlecenie', gotit: 'Rozumiem, przyjmij zmiany', accepted: 'Przyjęte', fromdisp: 'Od dyspozytora', newtoast: 'Nowe zlecenie od dyspozytora', updbanner: 'Dyspozytor zmienił to zlecenie. Sprawdź godziny i przyjmij.' }
+    };
+    function t(k) { return (T[S.lang] && T[S.lang][k]) || T.en[k] || k; }
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+    function hm(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function parse(s) { if (!s) return null; var d = new Date(s.length <= 10 ? s + 'T00:00' : s); return isNaN(d) ? null : d; }
+    function toast(m) { var x = document.createElement('div'); x.className = 'toast'; x.textContent = m; $('toasts').appendChild(x); setTimeout(function () { x.remove(); }, 2600); }
+    function locOf(code, fb) { return ref.location(code) || { code: code || '', name: (fb && fb.name) || code || '—', address: fb && fb.address, city: fb && (fb.city || fb.place), country: fb && fb.country }; }
+    function addr(l) { return [l.address, [l.postal, l.city].filter(Boolean).join(' '), l.country].filter(Boolean).join(', '); }
+
+    // ---------- работы машины ----------
+    function myLegs() {   // плечи этой машины; время забора, дороги и площадок — из timing.js
+      var out = [];
+      store.list().forEach(function (o) {
+        if (o.status === 'cancelled') return;
+        JTMS.timing.legs(o).forEach(function (l) {
+          // на телефоне — только отправленное диспетчером, во времени на момент отправки
+          if (l.sentTruck !== S.truck || !l.sentStart || !l.s) return;
+          var off = JTMS.timing.parse(l.sentStart) - l.s;
+          if (off) { l.s = new Date(+l.s + off); l.arrive = new Date(+l.arrive + off); l.e = new Date(+l.e + off); }
+          l.eta = l.arrive;
+          out.push(l);
+        });
+      });
+      return out.sort(function (a, b) { return a.s - b.s; });
+    }
+    function isNew(l) { return l.status !== 'done' && (!l.ack || l.ack < l.sent); }
+    function isUpd(l) { return isNew(l) && !!l.ack; }
+
+    // ---------- работа = весь контейнер: забор → погрузка/выгрузка → сдача, без деления на плечи ----------
+    function myJobs() {
+      var by = {}, out = [];
+      myLegs().forEach(function (l) { (by[l.order.id] = by[l.order.id] || []).push(l); });
+      Object.keys(by).forEach(function (id) {
+        var ls = by[id].sort(function (a, b) { return a.seq - b.seq; }), o = ls[0].order;
+        var j = { id: id, order: o, legs: ls, s: ls[0].s, e: ls[ls.length - 1].e, km: ls.reduce(function (a, l) { return a + (l.km || 0); }, 0) };
+        j.done = ls.every(function (l) { return l.status === 'done'; });
+        j.live = !j.done && ls.some(function (l) { return l.status === 'driving' || l.status === 'done' || l.picked; });
+        j.isNew = ls.some(isNew); j.isUpd = ls.some(isUpd);
+        j.issue = (ls.find(function (l) { return l.issue && !l.issue.closed; }) || {}).issue;
+        j.steps = steps(j); j.at = j.steps.findIndex(function (x) { return !x.done; });
+        j.cur = j.at < 0 ? ls[ls.length - 1] : j.steps[j.at].l;
+        out.push(j);
+      });
+      return out.sort(function (a, b) { return a.s - b.s; });
+    }
+    // Шаги водителя по всей работе: старт → контейнер забран → приехал → погружено/выгружено → … → сдал
+    function steps(j) {
+      var st = [];
+      j.legs.forEach(function (l, i) {
+        var dn = l.status === 'done';
+        if (i === 0) {
+          st.push({ k: 'start', l: l, done: dn || l.status === 'driving' || !!l.picked || !!l.arrived });
+          st.push({ k: 'picked', l: l, done: dn || !!l.picked || !!l.arrived });
+        }
+        st.push({ k: 'arrive', l: l, done: dn || !!l.arrived });
+        st.push({ k: 'finish', l: l, done: dn });
+      });
+      return st;
+    }
+    function stepLabel(x) {
+      if (!x) return '';
+      if (x.k === 'start') return t('startjob') + site(x.l.from);
+      if (x.k === 'picked') return t('pickedup');
+      if (x.k === 'arrive') return t('arrived') + site(x.l.to);
+      if (x.l.stop_type === 'LADEN') return t('loaded');
+      if (x.l.stop_type === 'LOSSEN') return t('unloaded');
+      return x.l.last ? t('handed') : t('picked');
+    }
+    function site(l) { return l.name || l.code; }
+    // Точки работы с временем по плану: забор, каждая остановка, сдача
+    function stopsOf(j) {
+      var l0 = j.legs[0], pts = [{ at: l0.from, kind: 'pickup', s: l0.segs[0] && l0.segs[0].s, ref: l0.fromStop && l0.fromStop.ref }];
+      j.legs.forEach(function (l) {
+        var post = l.segs[l.segs.length - 1];
+        pts.push({ at: l.to, kind: post.kind, s: post.s, win: l.win, closing: l.closing, stop: l.toStop, leg: l });
+      });
+      return pts;
+    }
+
+    // ---------- шапка ----------
+    function bar() {
+      var tr = ref.trucks.find(function (x) { return x.fleet === S.truck; });
+      var lang = '<button type="button" class="lang" id="lang">' + (S.lang === 'en' ? 'PL' : 'EN') + '</button>';
+      if (S.view === 'job') { $('bar').innerHTML = '<button type="button" class="back" id="back">‹ ' + t('back') + '</button><span class="ttl"></span><span style="margin-left:auto"></span>' + lang; return; }
+      $('bar').innerHTML = (tr ? '<img src="assets/brand/hyperion-mark.png" alt="Hyperion" style="height:26px">' : '<img src="assets/brand/hyperion-wordmark.png" alt="Hyperion" style="filter:brightness(0) invert(1)">') +
+        (tr ? '<div class="who"><b>' + esc(tr.fleet) + ' · ' + esc(tr.plate) + '</b><span>' + esc(tr.driver || '') + '</span></div>' : '<span style="margin-left:auto"></span>') + lang;
+    }
+
+    // ---------- выбор машины ----------
+    function viewPick() {
+      $('dock').innerHTML = '';
+      $('main').innerHTML = '<h2>' + t('pick') + '</h2><div class="pick">' + ref.trucks.map(function (x) {
+        return '<button type="button" data-truck="' + x.fleet + '"><span class="fl">' + x.fleet + '</span><span class="nm">' + esc(x.driver || '') + '</span><span class="pl">' + esc(x.plate) + '</span></button>';
+      }).join('') + '</div><p style="text-align:center;margin-top:22px;font-size:14px"><a href="dispatch.html" style="color:var(--blue)">Hyperion TMS · Dispatch</a></p>';
+    }
+
+    // ---------- список на день ----------
+    function jobCard(j, cls, tag) {
+      var o = j.order, pts = stopsOf(j);
+      return '<button type="button" class="job ' + cls + '" data-job="' + esc(j.id) + '"><span class="tag">' + tag + '</span>' +
+        '<div class="time">' + hm(j.s) + ' → ' + hm(j.e) + ' · ' + j.km + ' km</div>' +
+        '<div class="pts">' + pts.map(function (p, i) {
+          return (i ? '<span class="v"></span><span></span>' : '') + '<span class="d' + (i === pts.length - 1 ? ' d--to' : '') + '"></span><div class="p">' + esc(site(p.at)) +
+            '<small>' + esc(t('k_' + p.kind)) + (p.s ? ' ' + hm(p.s) : '') + ' · ' + esc([p.at.city, p.at.country].filter(Boolean).join(', ')) + '</small></div>';
+        }).join('') + '</div>' +
+        '<div class="meta">' + (o.container_no ? '<span class="cn">' + esc(iso.format(o.container_no)) + '</span>' : '<span>' + t('container') + ': ' + t('notknown') + '</span>') + '<span>' + esc(o.ct && o.ct.type || '') + '</span>' +
+        (o.f && o.f.adr ? '<span class="flag">ADR</span>' : '') + (o.rf && o.rf.temp != null && o.rf.temp !== '' ? '<span class="flag">' + esc(o.rf.temp) + ' °C</span>' : '') +
+        (j.issue ? '<span class="flag">⚠ ' + esc(t(j.issue.type)) + '</span>' : '') + '</div></button>';
+    }
+    function viewList() {
+      $('dock').innerHTML = '';
+      var all = myJobs(), today = ymd(new Date()), tom = ymd(new Date(Date.now() + 864e5));
+      var td = all.filter(function (j) { return ymd(j.s) === today; }), tm = all.filter(function (j) { return ymd(j.s) === tom; });
+      var open = td.filter(function (j) { return !j.done; }), cur = open[0];
+      var km = td.reduce(function (s, j) { return s + j.km; }, 0);
+      var html = '<div class="day"><div><b>' + td.length + '</b><span>' + t('jobs') + '</span></div><div><b>' + (td.length - open.length) + '</b><span>' + t('done') + '</span></div><div><b>' + km + '</b><span>' + t('km') + '</span></div>' +
+        '<div style="margin-left:auto;text-align:right"><b style="font-size:15px">' + new Date().toLocaleDateString(S.lang === 'pl' ? 'pl-PL' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + '</b><span>' + t('today') + '</span></div></div>';
+      var nw = all.filter(function (j) { return j.isNew; }).length;
+      if (nw) html += '<div class="newbar"><b>' + nw + '</b> ' + t('newjobs') + '</div>';
+      html += '<h2>' + t('today') + '</h2>';
+      if (!td.length) html += '<div class="none">' + t('none') + '</div>';
+      else if (!open.length) html += '<div class="none">' + t('alldone') + '</div>';
+      td.forEach(function (j) {
+        var cls = j.done ? 'is-done' : j.live ? 'is-live' : j === cur ? 'is-next' : '';
+        var tag = j.done ? t('done') : j.isNew ? t(j.isUpd ? 'tag_upd' : 'tag_new') : j.live ? t('live') : j === cur ? t('next') : t('planned');
+        if (j.isNew) cls += ' is-new';
+        html += jobCard(j, cls, tag);
+      });
+      if (tm.length) { html += '<h2>' + t('tomorrow') + '</h2>'; tm.forEach(function (j) { html += jobCard(j, j.isNew ? 'is-new' : '', j.isNew ? t(j.isUpd ? 'tag_upd' : 'tag_new') : t('planned')); }); }
+      html += '<div style="text-align:center;margin-top:18px"><button type="button" class="sbtn" id="change">' + t('change') + '</button></div>';
+      $('main').innerHTML = html;
+    }
+
+    // ---------- экран работы ----------
+    function curJob() { return myJobs().find(function (j) { return j.id === S.job; }); }
+    function curLeg() { var j = curJob(); return j && j.cur; }
+    function viewJob() {
+      var j = curJob();
+      if (!j) { S.view = 'list'; render(); return; }
+      var o = j.order, x = j.steps[j.at], l = j.cur;
+      var target = !x || x.k === 'start' || x.k === 'picked' ? (x ? x.l.from : l.to) : x.l.to;   // куда ехать сейчас
+      var nav = target.lat != null ? target.lat + ',' + target.lon : encodeURIComponent(addr(target) || target.name);
+      var art = (o.articles || []).reduce(function (s, a) { return s + (+a.gross || 0); }, 0);
+      var adr = (o.articles || []).filter(function (a) { return a.un; }).map(function (a) { return 'UN ' + a.un + ' · ' + t('adr') + ' ' + (a.adr || '') + (a.pack ? ' / ' + a.pack : ''); }).join(', ');
+      var pts = stopsOf(j), fs = j.legs[0].fromStop || {};
+      var html = '<div class="step">' + j.steps.map(function (s) { return '<i class="' + (s.done ? 'on' : '') + '"></i>'; }).join('') + '</div>';
+      html += '<div class="card"><div style="font-size:14px;color:var(--ink-2)">' + esc(o.customer) + ' · ' + hm(j.s) + '–' + hm(j.e) + ' · ' + j.km + ' km</div>' +
+        '<div class="big" style="margin-top:6px">' + esc(site(target)) + '</div><div class="addr">' + esc(addr(target)) + '</div>' +
+        '<div class="row2"><a class="navbtn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + nav + '">➤ ' + t('nav') + '</a>' +
+        (target.lat != null ? '<a class="navbtn" style="flex:0 0 100px" target="_blank" rel="noopener" href="https://waze.com/ul?ll=' + nav + '&navigate=yes">Waze</a>' : '') + '</div></div>';
+      if (j.isUpd) html += '<div class="note danger"><b>' + t('tag_upd') + '</b>' + t('updbanner') + '</div>';
+      var nt = (j.legs.find(function (q) { return q.note; }) || {}).note;
+      if (nt) html += '<div class="note"><b>' + t('fromdisp') + '</b>' + esc(nt) + '</div>';
+      if (j.issue) html += '<div class="note danger"><b>' + t('open') + esc(t(j.issue.type)) + '</b>' + esc(j.issue.text || '') + '</div>';
+
+      // маршрут работы одним списком
+      html += '<div class="card"><div class="stops">' + pts.map(function (p, i) {
+        var lg = p.leg, done = i === 0 ? (j.legs[0].picked || j.legs[0].arrived || j.legs[0].status === 'done') : lg && lg.status === 'done';
+        var now = !done && ((i === 0 && x && (x.k === 'start' || x.k === 'picked')) || (lg && x && x.l === lg && x.k !== 'start' && x.k !== 'picked'));
+        return '<div class="st' + (done ? ' is-done' : '') + (now ? ' is-now' : '') + '"><span class="sd"></span><div><div class="sk">' + esc(t('k_' + p.kind)) + (p.s ? ' · ' + hm(p.s) : '') +
+          (p.win ? ' · ' + t('slot') + ' ' + hm(p.win) + (p.stop && p.stop.until ? '–' + esc(p.stop.until) : '') : '') + (p.closing ? ' · ' + t('closing') + ' ' + hm(p.closing) : '') + '</div>' +
+          '<div class="sn">' + esc(site(p.at)) + '</div><div class="sa">' + esc(addr(p.at)) + '</div>' +
+          (p.stop && (p.stop.reference || p.stop.ref) ? '<div class="sa">' + t('ref') + ': ' + esc(p.stop.reference || p.stop.ref) + '</div>' : '') +
+          (i === 0 && p.ref ? '<div class="sa">' + t('pin') + ': ' + esc(p.ref) + ' <button type="button" class="copy" data-copy="' + esc(p.ref) + '">' + t('copy') + '</button></div>' : '') +
+          (p.stop && p.stop.instructions ? '<div class="sa" style="color:var(--ink)">' + esc(p.stop.instructions) + '</div>' : '') + '</div></div>';
+      }).join('') + '</div>' +
+        (o.deliver.vessel ? '<div class="sa" style="margin-top:8px">' + t('vessel') + ': <b>' + esc(o.deliver.vessel) + '</b>' + (o.deliver.destination ? ' → ' + esc(o.deliver.destination) : '') + '</div>' : '') + '</div>';
+
+      html += '<div class="card"><div style="font-size:14px;color:var(--ink-2)">' + t('container') + ' · ' + esc(o.ct && o.ct.type || '') + '</div>' +
+        (o.container_no ? '<div class="cnbig">' + esc(iso.format(o.container_no)) + '<button type="button" class="copy" data-copy="' + esc(o.container_no) + '">' + t('copy') + '</button></div>'
+          : '<div class="field"><label for="cn">' + t('cnenter') + '</label><input id="cn" class="code" autocomplete="off" autocapitalize="characters" inputmode="text" placeholder="MSCU 123456 7"><div class="msg" id="cn-msg"></div></div>' +
+            '<div class="field"><label for="seal">' + t('sealenter') + '</label><input id="seal" class="code" autocomplete="off" value="' + esc(o.ct && o.ct.seal || '') + '"></div>' +
+            '<div style="margin-top:10px"><button type="button" class="sbtn" id="save-cn">' + t('save') + '</button></div>') +
+        '<dl class="kv" style="margin-top:12px">' +
+        '<dt>' + t('booking') + '</dt><dd>' + esc(o.booking || '—') + ' <button type="button" class="copy" data-copy="' + esc(o.booking || '') + '">' + t('copy') + '</button></dd>' +
+        (o.container_no && o.ct && o.ct.seal ? '<dt>' + t('seal') + '</dt><dd>' + esc(o.ct.seal) + '</dd>' : '') +
+        (art ? '<dt>' + t('weight') + '</dt><dd>' + art.toLocaleString('en-GB') + ' kg</dd>' : '') +
+        (o.rf && o.rf.temp != null && o.rf.temp !== '' ? '<dt>' + t('reefer') + '</dt><dd>' + esc(o.rf.temp) + ' °C' + (o.f && o.f.genset ? ' · GENSET' : '') + '</dd>' : '') +
+        (adr || (o.f && o.f.adr) ? '<dt>' + t('adr') + '</dt><dd style="color:var(--signal)">' + esc(adr || 'ADR') + '</dd>' : '') +
+        '</dl>' + (o.remarks ? '<div class="note"><b>' + t('remarks') + '</b>' + esc(o.remarks) + '</div>' : '') + '</div>';
+
+      var myFiles = JTMS.files.list(o).filter(function (f) { return f.by === 'driver'; });
+      html += '<div class="card"><div style="font-size:14px;color:var(--ink-2);font-weight:600">' + t('photos') + '</div>' +
+        '<div class="ftypes" role="group">' + ['CMR', 'CHECKLIST', 'PIC'].map(function (k) { return '<button type="button" data-ft="' + k + '" class="' + (S.ftype === k ? 'is-on' : '') + '">' + t('ft_' + k) + '</button>'; }).join('') + '</div>' +
+        '<label class="addf"><input type="file" accept="image/*" capture="environment" id="ph" hidden>+ ' + t('addf') + t('ft_' + S.ftype) + '</label>' +
+        '<div class="hint3">' + t('pickt') + '</div>' +
+        (myFiles.length ? '<div class="photos">' + myFiles.map(function (f) {
+          return '<figure><img src="' + f.data + '" alt="' + esc(f.name) + '"><span class="ftag ftag--' + f.type + '">' + f.type + '</span><figcaption>' + esc(f.name) + '</figcaption></figure>';
+        }).join('') + '</div>' : '') + '</div>';
+
+      var evs = j.legs.reduce(function (m, q) { return m.concat(q.events || []); }, []).sort(function (a, b) { return a.t < b.t ? 1 : -1; });
+      if (evs.length) html += '<div class="card"><div style="font-size:14px;color:var(--ink-2);font-weight:600;margin-bottom:4px">' + t('history') + '</div><div class="log">' +
+        evs.map(function (e) { return '<div><b>' + hm(new Date(e.t)) + '</b><span>' + esc(t('ev_' + e.type)) + (e.text ? ': ' + esc(e.text) : '') + '</span></div>'; }).join('') + '</div></div>';
+
+      $('main').innerHTML = html;
+      if (j.isNew) { $('dock').innerHTML = '<div class="dock"><button type="button" class="act" id="accept">' + t(j.isUpd ? 'gotit' : 'accept') + '</button></div>'; return; }
+      var last = x && x.k === 'finish';
+      $('dock').innerHTML = '<div class="dock">' + (x ? '<button type="button" class="act' + (last ? ' act--done' : '') + '" id="act">' + esc(stepLabel(x)) + '</button>' : '<button type="button" class="act act--done" id="back2">✓ ' + t('done') + '</button>') +
+        '<button type="button" class="prob" id="prob" aria-label="' + t('problem') + '">!</button></div>';
+    }
+
+    // ---------- лист «проблема» ----------
+    var REASONS = ['r_wait', 'r_traffic', 'r_damage', 'r_wrong', 'r_docs', 'r_truck', 'r_other'];
+    function sheet() {
+      $('sheet').innerHTML = '<div class="sheet-bg" id="sheet-bg"><div class="sheet" role="dialog" aria-label="' + t('problem') + '"><h3>' + t('problem') + '</h3><div class="reasons">' +
+        REASONS.map(function (r, i) { return '<button type="button" data-r="' + r + '"' + (i === 0 ? ' class="is-on"' : '') + '>' + t(r) + '</button>'; }).join('') + '</div>' +
+        '<div class="field"><label for="pnote">' + t('note') + '</label><textarea id="pnote"></textarea></div>' +
+        '<div class="acts"><button type="button" id="p-cancel">' + t('cancel') + '</button><button type="button" class="send" id="p-send">' + t('send') + '</button></div></div></div>';
+    }
+
+    // ---------- действия ----------
+    function render() { JTMS.timing.rechain(); bar(); if (!S.truck) { S.view = 'pick'; viewPick(); } else if (S.view === 'job') viewJob(); else viewList(); }
+    function step() {   // следующий шаг работы
+      var j = curJob(); if (!j || j.at < 0) return;
+      var x = j.steps[j.at], l = x.l, oid = j.id, now = new Date().toISOString();
+      if (x.k === 'start') store.legEvent(oid, l.seq, 'start', '', { status: 'driving' });
+      else if (x.k === 'picked') store.legEvent(oid, l.seq, 'picked', site(l.from), { picked: now });
+      else if (x.k === 'arrive') store.legEvent(oid, l.seq, 'arrive', site(l.to), { arrived: now, status: 'driving' });
+      else {
+        store.legEvent(oid, l.seq, 'done', stepLabel(x), { status: 'done' });
+        var nxt = j.legs.find(function (q) { return q.seq > l.seq && q.status !== 'done'; });
+        if (nxt) store.plan(oid, nxt.seq, { status: 'driving' });   // сразу едем дальше — без отдельного «старта»
+        else {
+          toast('✓ ' + t('done'));
+          var nj = myJobs().filter(function (q) { return !q.done && q.id !== oid && ymd(q.s) === ymd(new Date()); })[0];
+          if (nj) S.job = nj.id; else S.view = 'list';
+        }
+      }
+      render(); window.scrollTo(0, 0);
+    }
+    function photo(file) {   // файл подписывается выбранным типом: CMR, CHECKLIST или PIC
+      var l = curLeg(); if (!l || !file) return;
+      toast(t('saving'));
+      JTMS.files.add(l.order.id, file, { type: S.ftype, seq: l.seq, truck: S.truck, by: 'driver' }).then(function (f) { toast('✓ ' + f.type); render(); }, function (e) { toast(e.message); });
+    }
+    document.addEventListener('click', function (e) {
+      var x = e.target;
+      var tb = x.closest('[data-truck]'); if (tb) { S.truck = tb.getAttribute('data-truck'); put('jtms.driver.truck', S.truck); S.view = 'list'; render(); return; }
+      var jb = x.closest('.job[data-job]'); if (jb) { S.job = jb.getAttribute('data-job'); S.view = 'job'; render(); window.scrollTo(0, 0); return; }
+      if (x.closest('#lang')) { S.lang = S.lang === 'en' ? 'pl' : 'en'; put('jtms.driver.lang', S.lang); document.documentElement.lang = S.lang; render(); return; }
+      if (x.closest('#back') || x.closest('#back2')) { S.view = 'list'; render(); window.scrollTo(0, 0); return; }
+      if (x.closest('#change')) { S.truck = ''; put('jtms.driver.truck', null); render(); return; }
+      if (x.closest('#act')) { step(); return; }
+      var ft = x.closest('[data-ft]'); if (ft) { S.ftype = ft.getAttribute('data-ft'); render(); return; }
+      if (x.closest('#accept')) {
+        var ja = curJob(), now = new Date().toISOString();
+        ja.legs.forEach(function (q) { if (isNew(q)) store.legEvent(q.order.id, q.seq, 'ack', '', { ack: now }); });
+        toast('✓ ' + t('accepted')); render(); return;
+      }
+      if (x.closest('#prob')) { sheet(); return; }
+      var r = x.closest('[data-r]'); if (r) { document.querySelectorAll('[data-r]').forEach(function (b) { b.classList.toggle('is-on', b === r); }); return; }
+      if (x.closest('#p-cancel') || x.id === 'sheet-bg') { $('sheet').innerHTML = ''; return; }
+      if (x.closest('#p-send')) {
+        var l = curLeg(), on = document.querySelector('[data-r].is-on'), type = on ? on.getAttribute('data-r') : 'r_other', note = $('pnote').value.trim();
+        store.legEvent(l.order.id, l.seq, 'problem', T.en[type] + (note ? ' — ' + note : ''), { issue: { type: type, text: note, t: new Date().toISOString() } });
+        $('sheet').innerHTML = ''; toast(t('sent')); render(); return;
+      }
+      var cp = x.closest('[data-copy]');
+      if (cp) { var v = cp.getAttribute('data-copy'); if (navigator.clipboard) navigator.clipboard.writeText(v).then(function () { toast(t('copied') + ': ' + v); }, function () {}); return; }
+      if (x.closest('#save-cn')) {
+        var l2 = curLeg(), res = iso.validate($('cn').value);
+        if (!res.ok) { $('cn-msg').className = 'msg bad'; $('cn-msg').textContent = res.msg; $('cn').focus(); return; }
+        var o = l2.order;
+        store.update(o.id, { container_no: res.value, container_ok: true, ct: Object.assign({}, o.ct, { seal: $('seal').value.trim().toUpperCase() }) });
+        store.legEvent(o.id, l2.seq, 'cn', iso.format(res.value));
+        toast(t('cnok')); render(); return;
+      }
+    });
+    document.addEventListener('input', function (e) {
+      if (e.target.id !== 'cn') return;
+      var v = iso.clean(e.target.value), m = $('cn-msg');
+      if (v.length < 11) { m.textContent = ''; return; }
+      var r = iso.validate(v); m.className = 'msg ' + (r.ok ? 'ok' : 'bad'); m.textContent = r.ok ? '✓ ' + t('cnok') : r.msg;
+    });
+    document.addEventListener('change', function (e) { if (e.target.id === 'ph') photo(e.target.files[0]); });
+    JTMS.geo.onChange(function () { if (!document.querySelector('input:focus,textarea:focus') && !$('sheet').innerHTML) render(); });
+    var known = null;
+    function newCount() { return S.truck ? myJobs().filter(function (j) { return j.isNew; }).length : 0; }
+    window.addEventListener('storage', function () {
+      var n = newCount();
+      if (known != null && n > known) { toast(t('newtoast')); try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) {} }
+      known = n; if (!document.querySelector('input:focus,textarea:focus') && !$('sheet').innerHTML) render(); });   // диспетчер поменял план
+
+    document.documentElement.lang = S.lang;
+    if (!store.list().length) store.addMany(JTMS.samples());
+    JTMS.timing.migrate();
+    known = newCount();
+    render();
+  })();
+  </script>
+</body>
+</html>
