@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0A1B4D">
+  <title>Sign in — Hyperion TMS</title>
+  <link rel="icon" href="assets/brand/favicon.png">
+  <link rel="stylesheet" href="assets/theme.css">
+  <style>
+    /* ---------- Вход: один экран для офиса и водителей ---------- */
+    body { min-height: 100vh; margin: 0; background: var(--navy); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; }
+    .logo { height: 34px; margin-bottom: 26px; filter: brightness(0) invert(1); }
+    form { width: 100%; max-width: 380px; background: #fff; border-radius: 16px; padding: 26px 24px 22px; }
+    h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }
+    .sub { font-size: 14px; color: var(--ink-2); margin: 0 0 18px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 0 0 6px; }
+    input { display: block; width: 100%; box-sizing: border-box; height: 48px; border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; font: inherit; font-size: 16px; color: var(--ink); margin-bottom: 14px; }
+    input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10, 91, 245, .16); }
+    button { width: 100%; height: 50px; border: 0; border-radius: 10px; background: var(--blue); color: #fff; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+    button:hover { background: var(--blue-hover); }
+    button:disabled { opacity: .6; cursor: default; }
+    button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+    .err { display: none; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: #FEF2F2; color: #B91C1C; font-size: 14px; }
+    .err.on { display: block; }
+    .foot { color: #B9C6E4; font-size: 13px; margin-top: 18px; text-align: center; max-width: 380px; }
+  </style>
+</head>
+<body>
+  <img class="logo" src="assets/brand/hyperion-wordmark.png" alt="Hyperion">
+  <form id="f" novalidate>
+    <h1 id="h">Sign in</h1>
+    <p class="sub" id="s">Office and drivers use the same login. The office gives you access.</p>
+    <div class="err" id="err" role="alert"></div>
+    <label for="em" id="lem">E-mail</label>
+    <input id="em" type="email" autocomplete="username" inputmode="email" required>
+    <label for="pw" id="lpw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" required>
+    <button type="submit" id="go">Sign in</button>
+  </form>
+  <p class="foot" id="foot"></p>
+
+  <script src="assets/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    // водители — поляки: язык как в приложении водителя
+    var PL = (function () { try { return localStorage.getItem('jtms.driver.lang') === 'pl' || /^pl/i.test(navigator.language); } catch (e) { return false; } })();
+    var T = PL ? { h: 'Logowanie', s: 'Biuro i kierowcy logują się tak samo. Dostęp nadaje biuro.', em: 'E-mail', pw: 'Hasło', go: 'Zaloguj', wait: 'Loguję…', bad: 'Zły e-mail lub hasło.', net: 'Brak połączenia. Spróbuj ponownie.', fill: 'Wpisz e-mail i hasło.' }
+               : { h: 'Sign in', s: 'Office and drivers use the same login. The office gives you access.', em: 'E-mail', pw: 'Password', go: 'Sign in', wait: 'Signing in…', bad: 'Wrong e-mail or password.', net: 'No connection. Try again.', fill: 'Enter your e-mail and password.' };
+    $('h').textContent = T.h; $('s').textContent = T.s; $('lem').textContent = T.em; $('lpw').textContent = T.pw; $('go').textContent = T.go;
+    if (PL) document.documentElement.lang = 'pl';
+
+    var cfg = JTMS.config || {};
+    function err(m) { $('err').textContent = m; $('err').classList.toggle('on', !!m); }
+    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase) {
+      err(!window.supabase ? 'Could not load the sign-in service. Check the internet connection and reload.' : 'The shared base is not set up yet (assets/config.js). Hyperion works in this browser only.');
+      $('go').disabled = true;
+      $('foot').innerHTML = '<a href="orders.html" style="color:#fff">Open Hyperion without signing in</a>';
+      return;
+    }
+    var sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    var next = new URLSearchParams(location.search).get('next') || '';
+    if (!/^[\w-]+\.html(#[\w-]*)?$/.test(next)) next = '';   // только свои страницы
+
+    function goOn(user) {
+      return sb.from('profiles').select('role').eq('id', user.id).maybeSingle().then(function (r) {
+        var role = r.data && r.data.role;
+        if (role === 'driver') location.replace('driver.html');
+        else location.replace(next && next !== 'login.html' ? next : 'orders.html');
+      });
+    }
+    sb.auth.getSession().then(function (r) { if (r.data && r.data.session) goOn(r.data.session.user); });
+
+    $('f').addEventListener('submit', function (e) {
+      e.preventDefault(); err('');
+      var em = $('em').value.trim(), pw = $('pw').value;
+      if (!em || !pw) { err(T.fill); return; }
+      $('go').disabled = true; $('go').textContent = T.wait;
+      sb.auth.signInWithPassword({ email: em, password: pw }).then(function (r) {
+        if (r.error) throw r.error;
+        return goOn(r.data.user);
+      }).catch(function (e) {
+        $('go').disabled = false; $('go').textContent = T.go;
+        err(/invalid|credentials/i.test(e.message || '') ? T.bad : /fetch|network/i.test(e.message || '') ? T.net : (e.message || T.bad));
+      });
+    });
+    $('em').focus();
+  })();
+  </script>
+</body>
+</html>

@@ -76,6 +76,9 @@ JTMS.files = (function () {
       });
     });
     out.sort(function (a, b) { return a.t < b.t ? -1 : 1; });
+    // что показывать: сам снимок (в этом браузере) или ссылку на файл в облаке
+    var C = JTMS.cloud;
+    out.forEach(function (f) { f.src = f.data || (f.path && C && C.on ? C.fileUrl(f.path) : ''); });
     // подпись: тип + номер по порядку внутри типа
     var cnt = {};
     out.forEach(function (f) { cnt[f.type] = (cnt[f.type] || 0) + 1; f.n = cnt[f.type]; f.name = name(o, f); });
@@ -111,6 +114,14 @@ JTMS.files = (function () {
   function add(orderId, file, meta) {
     return read(file).then(function (data) {
       var o = JTMS.store.get(orderId); if (!o) throw new Error('Order not found');
+      var C = JTMS.cloud;
+      if (C && C.on) {   // облако: снимок уходит в хранилище файлов, в ордере — только запись о нём
+        var id = uid(), cf = Object.assign({ id: id, t: new Date().toISOString(), path: 'orders/' + orderId + '/' + id + '.jpg', orig: file.name || '' }, meta);
+        o.files = (o.files || []).concat([cf]); JTMS.store._putLocal(o);
+        C.fileAdd(orderId, cf, data);
+        if (cf.seq && meta.by === 'driver') { try { JTMS.store.legEvent(orderId, cf.seq, 'photo', TYPES[cf.type] || cf.type); } catch (e) {} }
+        return cf;
+      }
       var f = Object.assign({ id: uid(), t: new Date().toISOString(), data: data, orig: file.name || '' }, meta);
       try { JTMS.store.update(orderId, { files: (o.files || []).concat([f]) }); }
       catch (e) { throw new Error('Not enough space in this browser for more files. Delete old ones, or wait for the server version.'); }
@@ -124,6 +135,12 @@ JTMS.files = (function () {
       var m = /^old(\d+)_(\d+)$/.exec(fileId), plan = Object.assign({}, o.plan);
       plan[m[1]] = Object.assign({}, plan[m[1]], { photos: (plan[m[1]].photos || []).filter(function (x, i) { return i !== +m[2]; }) });
       JTMS.store.update(orderId, { plan: plan }); return;
+    }
+    var C = JTMS.cloud;
+    if (C && C.on) {
+      var gone = (o.files || []).find(function (f) { return f.id === fileId; });
+      o.files = (o.files || []).filter(function (f) { return f.id !== fileId; }); JTMS.store._putLocal(o);
+      if (gone) C.fileRemove(orderId, gone); return;
     }
     JTMS.store.update(orderId, { files: (o.files || []).filter(function (f) { return f.id !== fileId; }) });
   }

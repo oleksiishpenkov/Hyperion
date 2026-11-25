@@ -8,7 +8,7 @@ def data_uri(rel):
     b = (ROOT / rel).read_bytes()
     return 'data:image/png;base64,' + base64.b64encode(b).decode()
 
-for page in ['orders.html', 'order-new.html', 'dispatch.html', 'driver.html', 'ports.html', 'settings.html']:
+for page in ['orders.html', 'order-new.html', 'dispatch.html', 'driver.html', 'ports.html', 'settings.html', 'login.html']:
     s = (ROOT / page).read_text(encoding='utf-8')
     s = re.sub(r'<link rel="stylesheet" href="(assets/[^"]+\.css)">',
                lambda m: '<style>\n' + (ROOT / m.group(1)).read_text(encoding='utf-8') + '\n</style>', s)

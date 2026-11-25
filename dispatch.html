@@ -256,7 +256,10 @@
   <script src="assets/ports.js"></script>
   <script src="assets/terminals.js"></script>
   <script src="assets/ref.js"></script>
+  <script src="assets/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/store.js"></script>
+  <script src="assets/cloud.js"></script>
   <script src="assets/samples.js"></script>
   <script src="assets/routing.js"></script>
   <script src="assets/geo.js"></script>
@@ -629,7 +632,7 @@
         (rr ? '<div class="mapbox">' + JTMS.route.svg(rr, { width: 348, height: 190 }) + '</div><div class="roads">' + esc(rr.roads.join(' → ')) + (rr.borders.length ? '<br>Border: ' + esc(rr.borders.map(JTMS.route.name).join(', ')) : '') + '</div>' : '') +
         (evs.length || photos.length ? '<div class="evlog"><div class="evh">From the driver app</div>' + evs.map(function (e) {
           return '<div><b>' + hm(new Date(e.t)) + '</b><span>' + esc(EV[e.type] || e.type) + (e.text ? ' — ' + esc(e.text) : '') + '</span></div>'; }).join('') +
-          (photos.length ? '<div class="evph">' + photos.map(function (f) { return '<span class="evf" title="' + esc(f.name) + '"><img src="' + f.data + '" alt="' + esc(f.type + ' ' + f.name) + '"><i>' + f.type + '</i></span>'; }).join('') + '</div><div style="font-size:12px;color:var(--ink-2);margin-top:4px">' + photos.length + ' file(s) · open the order in Orders → Attachments</div>' : '') +
+          (photos.length ? '<div class="evph">' + photos.map(function (f) { return '<span class="evf" title="' + esc(f.name) + '"><img src="' + f.src + '" alt="' + esc(f.type + ' ' + f.name) + '"><i>' + f.type + '</i></span>'; }).join('') + '</div><div style="font-size:12px;color:var(--ink-2);margin-top:4px">' + photos.length + ' file(s) · open the order in Orders → Attachments</div>' : '') +
           (issue ? '<button type="button" class="btn btn--sm" id="p-solve" data-seq="' + issue.seq + '" style="margin-top:8px">Mark problem as solved</button>' : '') + '</div>' : '') +
         (open.some(function (l) { return l.truck; }) ? (function () {
           var sl = open.filter(function (l) { return l.truck; }), ss = sendState(sl), last = sl.map(function (l) { return l.sent; }).filter(Boolean).sort().pop();
@@ -680,7 +683,8 @@
         .map(function (l) { return { from: l.from, to: l.to }; }));
     }
     // rechain: длительности могли измениться (маршрут от сервиса, нормы) — плечи работы снова встают подряд
-    function render() { TM.rechain(); load(); var gs = groups(); renderHead(dayGroups(gs)); renderBoard(gs); renderSide(); renderDetail(); renderRoutes(); askRoutes(); }
+    var quiet = false;
+    function render() { if (!quiet) TM.rechain(); load(); var gs = groups(); renderHead(dayGroups(gs)); renderBoard(gs); renderSide(); renderDetail(); renderRoutes(); askRoutes(); }
     JTMS.geo.onChange(function () {   // пришли маршруты от сервиса — пересчитать (кроме момента, когда диспетчер вводит время)
       if (document.querySelector('#detail input:focus, #detail select:focus') || drag) { renderRoutes(); return; }
       render();
@@ -819,12 +823,16 @@
       else if (e.key === 'Escape' && state.sel) { state.sel = null; paintSel(); renderSide(); renderDetail(); }
     });
     window.addEventListener('resize', updateNow);
-    window.addEventListener('storage', render);   // ордер изменили в другой вкладке или водитель в приложении
+    // ордер изменили в другой вкладке, в базе или водитель в приложении; чужие изменения не пересчитываем (иначе два диспетчера перебивают друг друга)
+    window.addEventListener('storage', function () { quiet = true; try { render(); } finally { quiet = false; } });
     setInterval(function () { load(); renderHead(groups()); renderSide(); updateNow(); }, 60e3);
 
-    if (!store.list().length) store.addMany(JTMS.samples());
-    TM.migrate();
+    if (!JTMS.cloud.on) {   // без облака: примеры для пустого браузера
+      if (!store.list().length) store.addMany(JTMS.samples());
+      TM.migrate();
+    }
     render();
+    JTMS.cloud.guard('office');
   })();
   </script>
 </body>

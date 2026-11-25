@@ -43,6 +43,15 @@
     .result td { padding: 2px 16px 2px 0; font-variant-numeric: tabular-nums; }
     .norms .f input { width: 100%; }
     .note { font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+    /* команда: кто входит в общую базу */
+    .team { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .team th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-3); padding: 0 10px 8px 0; border-bottom: 1px solid var(--line); }
+    .team td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .team select, .team input { height: 36px; border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 0 8px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; max-width: 100%; }
+    .team .em { font-weight: 600; word-break: break-all; }
+    .team tr.is-none td { background: var(--signal-soft); }
+    .steps { margin: 10px 0 0 18px; font-size: 14px; color: var(--ink-2); line-height: 1.65; }
+    .steps b { color: var(--ink); }
   </style>
 </head>
 <body>
@@ -53,8 +62,21 @@
 
   <main class="wrap">
     <h1>Settings</h1>
-    <p class="lead">Truck routes and time norms used by Dispatch, the driver app and order distances.</p>
+    <p class="lead">Team access, truck routes and time norms used by Dispatch, the driver app and order distances.</p>
 
+    <section class="card" id="team-card" hidden>
+      <h2>Team</h2>
+      <p class="sub">Who can sign in to the shared base. Office sees and changes all orders. A driver sees only jobs sent to their truck, and can mark progress and add CMR and photos.</p>
+      <div style="overflow-x:auto"><table class="team"><thead><tr><th>E-mail</th><th>Name</th><th>Access</th><th>Truck (drivers)</th></tr></thead><tbody id="team"></tbody></table></div>
+      <div class="acts"><button type="button" class="btn" id="team-reload">Reload list</button><span class="hint" id="team-hint"></span></div>
+      <p class="note" style="margin-top:16px"><b>To add a person</b></p>
+      <ol class="steps">
+        <li>Open Supabase → <b>Authentication → Users → Add user → Create new user</b>.</li>
+        <li>Enter their e-mail and a password, tick <b>Auto Confirm User</b>, then press <b>Create user</b>.</li>
+        <li>Press <b>Reload list</b> here. Give them <b>Office</b> or <b>Driver</b> access. For a driver, also choose the truck.</li>
+        <li>Send them the Hyperion link with the e-mail and password. On the phone the driver opens the same link and lands in the driver app.</li>
+      </ol>
+    </section>
     <section class="card">
       <h2>Truck routing</h2>
       <p class="sub">Distances and driving times come from a routing service that follows the real road network with your truck's size and weight, so it avoids low bridges and roads closed to trucks. Each route is asked once and saved.</p>
@@ -121,7 +143,10 @@
   <script src="assets/ports.js"></script>
   <script src="assets/terminals.js"></script>
   <script src="assets/ref.js"></script>
+  <script src="assets/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/store.js"></script>
+  <script src="assets/cloud.js"></script>
   <script src="assets/routing.js"></script>
   <script src="assets/geo.js"></script>
   <script src="assets/timing.js"></script>
@@ -189,6 +214,39 @@
     });
     G.onChange(cache);
     fill();
+
+    // ---------- команда (только с общей базой) ----------
+    var CL = JTMS.cloud;
+    function teamLoad() {
+      $('team-hint').textContent = 'Loading…';
+      CL.client.from('profiles').select('*').order('created_at').then(function (r) {
+        if (r.error) { $('team-hint').textContent = 'Could not load the team: ' + r.error.message; return; }
+        var trucks = JTMS.ref.trucks;
+        var none = r.data.filter(function (p) { return p.role === 'none'; }).length;
+        $('team-hint').textContent = r.data.length + ' account(s)' + (none ? ', ' + none + ' waiting for access' : '');
+        $('team').innerHTML = r.data.map(function (p) {
+          var me = p.id === CL.me().id;
+          return '<tr data-id="' + p.id + '" class="' + (p.role === 'none' ? 'is-none' : '') + '"><td class="em">' + esc(p.email || '') + (me ? ' <span class="hint">(you)</span>' : '') + '</td>' +
+            '<td><input data-k="name" value="' + esc(p.name || '') + '" placeholder="Name" aria-label="Name"></td>' +
+            '<td><select data-k="role" aria-label="Access"' + (me ? ' disabled title="You cannot change your own access"' : '') + '>' +
+              [['none', 'No access'], ['driver', 'Driver'], ['office', 'Office']].map(function (o) { return '<option value="' + o[0] + '"' + (p.role === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></td>' +
+            '<td><select data-k="truck" aria-label="Truck"' + (p.role === 'driver' ? '' : ' disabled') + '><option value="">—</option>' +
+              trucks.map(function (t) { return '<option value="' + t.fleet + '"' + (p.truck === t.fleet ? ' selected' : '') + '>' + t.fleet + ' · ' + esc(t.driver || t.plate || '') + '</option>'; }).join('') + '</select></td></tr>';
+        }).join('');
+      });
+    }
+    function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    $('team').addEventListener('change', function (e) {
+      var el = e.target.closest('[data-k]'); if (!el) return;
+      var tr = el.closest('tr'), patch = {}; patch[el.getAttribute('data-k')] = el.value || null;
+      if (patch.role && patch.role !== 'driver') patch.truck = null;
+      CL.client.from('profiles').update(patch).eq('id', tr.getAttribute('data-id')).then(function (r) {
+        if (r.error) { toast('Not saved: ' + r.error.message); return; }
+        toast('Saved'); if ('role' in patch) teamLoad();
+      });
+    });
+    $('team-reload').addEventListener('click', teamLoad);
+    CL.guard('office').then(function (me) { if (!me) return; $('team-card').hidden = false; teamLoad(); });
   })();
   </script>
 </body>

@@ -159,7 +159,10 @@
   <script src="assets/ports.js"></script>
   <script src="assets/terminals.js"></script>
   <script src="assets/ref.js"></script>
+  <script src="assets/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/store.js"></script>
+  <script src="assets/cloud.js"></script>
   <script src="assets/samples.js"></script>
   <script src="assets/routing.js"></script>
   <script src="assets/geo.js"></script>
@@ -175,7 +178,7 @@
 
     // ---------- языки: английский и польский ----------
     var T = {
-      en: { pick: 'Choose your truck', today: 'Today', tomorrow: 'Tomorrow', jobs: 'jobs', km: 'km', hours: 'hours', next: 'Next', live: 'Now', done: 'Done', planned: 'Planned',
+      en: { signout: 'Sign out', pick: 'Choose your truck', today: 'Today', tomorrow: 'Tomorrow', jobs: 'jobs', km: 'km', hours: 'hours', next: 'Next', live: 'Now', done: 'Done', planned: 'Planned',
         none: 'No jobs for today. Dispatch will send them here.', from: 'From', to: 'To', container: 'Container', notknown: 'not known yet', booking: 'Booking', pin: 'PIN / pick-up ref', ref: 'Reference',
         slot: 'Slot', closing: 'Closing', vessel: 'Vessel', type: 'Type', seal: 'Seal', weight: 'Gross weight', reefer: 'Reefer', adr: 'ADR', instr: 'Instructions', remarks: 'Remarks',
         start: 'Start driving', arrived: 'Arrived at ', loaded: 'Loaded, continue', unloaded: 'Unloaded, continue', handed: 'Container delivered', picked: 'Done here, continue',
@@ -186,7 +189,7 @@
         ev_start: 'Started driving', ev_arrive: 'Arrived', ev_done: 'Finished', ev_problem: 'Problem', ev_photo: 'Photo added', ev_cn: 'Container number entered', open: 'Open problem: ',
         ev_sent: 'Sent by dispatch', ev_recall: 'Taken back by dispatch', ev_ack: 'Accepted', tag_new: 'New', tag_upd: 'Updated', startjob: 'Start job: drive to ', pickedup: 'Container picked up', ev_picked: 'Container picked up', k_pickup: 'Pick-up', k_load: 'Loading', k_unload: 'Unloading', k_stop: 'Stop', k_drop: 'Drop-off', newjobs: 'new or changed job(s) from dispatch. Open and accept.',
         accept: 'Accept job', gotit: 'Got it, accept changes', accepted: 'Accepted', fromdisp: 'From dispatch', newtoast: 'New job from dispatch', updbanner: 'Dispatch changed this job. Check the times and accept.' },
-      pl: { pick: 'Wybierz swój ciągnik', today: 'Dzisiaj', tomorrow: 'Jutro', jobs: 'zleceń', km: 'km', hours: 'godz.', next: 'Następne', live: 'Teraz', done: 'Gotowe', planned: 'Zaplanowane',
+      pl: { signout: 'Wyloguj', pick: 'Wybierz swój ciągnik', today: 'Dzisiaj', tomorrow: 'Jutro', jobs: 'zleceń', km: 'km', hours: 'godz.', next: 'Następne', live: 'Teraz', done: 'Gotowe', planned: 'Zaplanowane',
         none: 'Brak zleceń na dziś. Dyspozytor wyśle je tutaj.', from: 'Skąd', to: 'Dokąd', container: 'Kontener', notknown: 'jeszcze nieznany', booking: 'Booking', pin: 'PIN / ref. odbioru', ref: 'Referencja',
         slot: 'Okno', closing: 'Closing', vessel: 'Statek', type: 'Typ', seal: 'Plomba', weight: 'Waga brutto', reefer: 'Chłodnia', adr: 'ADR', instr: 'Instrukcje', remarks: 'Uwagi',
         start: 'Rozpocznij jazdę', arrived: 'Jestem na miejscu: ', loaded: 'Załadowany, dalej', unloaded: 'Rozładowany, dalej', handed: 'Kontener oddany', picked: 'Gotowe, dalej',
@@ -329,7 +332,7 @@
         html += jobCard(j, cls, tag);
       });
       if (tm.length) { html += '<h2>' + t('tomorrow') + '</h2>'; tm.forEach(function (j) { html += jobCard(j, j.isNew ? 'is-new' : '', j.isNew ? t(j.isUpd ? 'tag_upd' : 'tag_new') : t('planned')); }); }
-      html += '<div style="text-align:center;margin-top:18px"><button type="button" class="sbtn" id="change">' + t('change') + '</button></div>';
+      html += '<div style="text-align:center;margin-top:18px">' + (S.locked ? '<button type="button" class="sbtn" id="signout">' + t('signout') + '</button>' : '<button type="button" class="sbtn" id="change">' + t('change') + '</button>') + '</div>';
       $('main').innerHTML = html;
     }
 
@@ -387,7 +390,7 @@
         '<label class="addf"><input type="file" accept="image/*" capture="environment" id="ph" hidden>+ ' + t('addf') + t('ft_' + S.ftype) + '</label>' +
         '<div class="hint3">' + t('pickt') + '</div>' +
         (myFiles.length ? '<div class="photos">' + myFiles.map(function (f) {
-          return '<figure><img src="' + f.data + '" alt="' + esc(f.name) + '"><span class="ftag ftag--' + f.type + '">' + f.type + '</span><figcaption>' + esc(f.name) + '</figcaption></figure>';
+          return '<figure><img src="' + f.src + '" alt="' + esc(f.name) + '"><span class="ftag ftag--' + f.type + '">' + f.type + '</span><figcaption>' + esc(f.name) + '</figcaption></figure>';
         }).join('') + '</div>' : '') + '</div>';
 
       var evs = j.legs.reduce(function (m, q) { return m.concat(q.events || []); }, []).sort(function (a, b) { return a.t < b.t ? 1 : -1; });
@@ -411,7 +414,7 @@
     }
 
     // ---------- действия ----------
-    function render() { JTMS.timing.rechain(); bar(); if (!S.truck) { S.view = 'pick'; viewPick(); } else if (S.view === 'job') viewJob(); else viewList(); }
+    function render() { if (!JTMS.cloud.on) JTMS.timing.rechain(); bar(); if (!S.truck) { S.view = 'pick'; viewPick(); } else if (S.view === 'job') viewJob(); else viewList(); }
     function step() {   // следующий шаг работы
       var j = curJob(); if (!j || j.at < 0) return;
       var x = j.steps[j.at], l = x.l, oid = j.id, now = new Date().toISOString();
@@ -441,6 +444,7 @@
       var jb = x.closest('.job[data-job]'); if (jb) { S.job = jb.getAttribute('data-job'); S.view = 'job'; render(); window.scrollTo(0, 0); return; }
       if (x.closest('#lang')) { S.lang = S.lang === 'en' ? 'pl' : 'en'; put('jtms.driver.lang', S.lang); document.documentElement.lang = S.lang; render(); return; }
       if (x.closest('#back') || x.closest('#back2')) { S.view = 'list'; render(); window.scrollTo(0, 0); return; }
+      if (x.closest('#signout')) { JTMS.cloud.signOut(); return; }
       if (x.closest('#change')) { S.truck = ''; put('jtms.driver.truck', null); render(); return; }
       if (x.closest('#act')) { step(); return; }
       var ft = x.closest('[data-ft]'); if (ft) { S.ftype = ft.getAttribute('data-ft'); render(); return; }
@@ -484,10 +488,16 @@
       known = n; if (!document.querySelector('input:focus,textarea:focus') && !$('sheet').innerHTML) render(); });   // диспетчер поменял план
 
     document.documentElement.lang = S.lang;
-    if (!store.list().length) store.addMany(JTMS.samples());
-    JTMS.timing.migrate();
+    if (!JTMS.cloud.on) {   // без облака: примеры для пустого браузера
+      if (!store.list().length) store.addMany(JTMS.samples());
+      JTMS.timing.migrate();
+    }
     known = newCount();
     render();
+    // общая база: водитель видит только свою машину (из профиля), выбирать не нужно
+    JTMS.cloud.guard('driver').then(function (me) {
+      if (me && me.role === 'driver') { S.truck = me.truck; S.locked = true; put('jtms.driver.truck', S.truck); if (S.view === 'pick') S.view = 'list'; known = newCount(); render(); }
+    });
   })();
   </script>
 </body>

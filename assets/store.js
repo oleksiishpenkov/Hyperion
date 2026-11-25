@@ -1,6 +1,7 @@
 /* =========================================================
    Хранилище ордеров (букингов контейнеров).
-   Сейчас — localStorage этого браузера, позже — Supabase.
+   Локальная копия в localStorage; если подключено облако (cloud.js),
+   каждое изменение ещё и уходит в общую базу через hook.
    Ордер = один контейнер (File Nr). Маршрут:
    PickUp → строки «Погрузка/Выгрузка» → Deliver → из них плечи.
    ========================================================= */
@@ -8,6 +9,8 @@ window.JTMS = window.JTMS || {};
 
 JTMS.store = (function () {
   var KEY = 'jtms.orders.v2';
+  var hook = null;   // облако: insert / merge / plan / remove
+  function send(fn) { if (hook && hook[fn]) try { hook[fn].apply(null, [].slice.call(arguments, 1)); } catch (e) { console.error(e); } }
   var FILE_NR_START = 30000001;   // своя нумерация, чтобы не пересекаться с File Nr из BPA
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
@@ -42,12 +45,27 @@ JTMS.store = (function () {
     return legs;
   }
 
+  // Производные поля из плана: плечи, машина, статус ордера
+  function derive(o) {
+    o.legs = buildLegs(o);
+    var used = o.legs.filter(function (l) { return l.truck; });
+    if (used.length) o.truck = used[0].truck;
+    if (o.status !== 'cancelled' && o.status !== 'closed') {
+      if (o.legs.length && o.legs.every(function (l) { return l.status === 'done'; })) o.status = 'done';
+      else if (o.legs.some(function (l) { return l.status === 'driving' || l.status === 'done'; })) o.status = 'in_progress';
+      else if (used.length) o.status = 'planned';
+      else if (o.status === 'planned') o.status = 'new';
+    }
+    return o;
+  }
+
   function create(data) {
     var list = load();
     var o = Object.assign({}, data, { id: uid(), file_nr: String(nextFileNr()), status: 'new', created_at: new Date().toISOString() });
     o.legs = buildLegs(o);
     list.unshift(o);
     if (!save(list)) throw new Error('Could not save: browser storage is not available');
+    send('insert', [o]);
     return o;
   }
 
@@ -60,19 +78,24 @@ JTMS.store = (function () {
     o.legs = buildLegs(o);
     list[i] = o;
     if (!save(list)) throw new Error('Could not save: browser storage is not available');
+    // в базу — только изменённые поля (план и файлы меняются своими функциями)
+    var patch = Object.assign({}, data, { legs: o.legs, updated_at: o.updated_at });
+    delete patch.id; delete patch.file_nr; delete patch.created_at; delete patch.plan; delete patch.files;
+    send('merge', id, patch);
     return o;
   }
 
-  function remove(id) { save(load().filter(function (o) { return o.id !== id; })); }
+  function remove(id) { save(load().filter(function (o) { return o.id !== id; })); send('remove', id); }
 
   // Добавить готовые ордера пачкой (примеры)
   function addMany(arr) {
-    var list = load(), nr = nextFileNr();
+    var list = load(), nr = nextFileNr(), added = [];
     arr.forEach(function (d) {
       var o = Object.assign({ status: 'new' }, d, { id: uid(), file_nr: String(nr++), created_at: d.created_at || new Date().toISOString() });
-      o.legs = buildLegs(o); list.unshift(o);
+      o.legs = buildLegs(o); list.unshift(o); added.push(o);
     });
     save(list);
+    if (added.length) send('insert', added);
   }
 
   // Диспетчер: назначить плечо seq ордера на машину и время, сменить статус или снять (patch = null)
@@ -80,19 +103,15 @@ JTMS.store = (function () {
     var list = load(), i = list.findIndex(function (o) { return o.id === orderId; });
     if (i < 0) throw new Error('Order not found');
     var o = list[i]; o.plan = Object.assign({}, o.plan);
+    var fresh = !o.plan[seq];
     if (patch === null) delete o.plan[seq]; else o.plan[seq] = Object.assign({ status: 'planned' }, o.plan[seq], patch);
-    o.legs = buildLegs(o);
-    var used = o.legs.filter(function (l) { return l.truck; });
-    if (used.length) o.truck = used[0].truck;
-    if (o.status !== 'cancelled') {
-      if (o.legs.length && o.legs.every(function (l) { return l.status === 'done'; })) o.status = 'done';
-      else if (o.legs.some(function (l) { return l.status === 'driving' || l.status === 'done'; })) o.status = 'in_progress';
-      else if (used.length) o.status = 'planned';
-      else if (o.status === 'planned') o.status = 'new';
-    }
+    derive(o);
     o.updated_at = new Date().toISOString();
     list[i] = o;
     if (!save(list)) throw new Error('Could not save: browser storage is not available');
+    // в базу — только изменённые ключи плеча, база сливает их с тем, что уже есть (водитель и офис не затирают друг друга)
+    var p = patch === null ? null : Object.assign(fresh && !patch.status ? { status: 'planned' } : {}, patch);
+    send('plan', orderId, seq, p, { status: o.status, legs: o.legs, updated_at: o.updated_at });
     return o;
   }
   // Водитель: событие по плечу (старт, прибытие, готово, проблема, фото) + изменения плана
@@ -108,7 +127,16 @@ JTMS.store = (function () {
     return map;
   }
 
-  return { list: load, get: get, create: create, update: update, remove: remove, addMany: addMany,
+  // для облака: своя копия базы и куда отправлять изменения
+  function _setKey(k) { KEY = k; }
+  function _setHook(h) { hook = h; }
+  // заменить ордер в локальной копии без отправки в базу (пришло из облака)
+  function _putLocal(o) {
+    var list = load(), i = list.findIndex(function (x) { return x.id === o.id; });
+    derive(o); if (i >= 0) list[i] = o; else list.unshift(o); save(list);
+  }
+
+  return { list: load, get: get, derive: derive, _setKey: _setKey, _setHook: _setHook, _putLocal: _putLocal, create: create, update: update, remove: remove, addMany: addMany,
            nextFileNr: nextFileNr, openContainers: openContainers, buildLegs: buildLegs, plan: plan, legEvent: legEvent };
 })();
 

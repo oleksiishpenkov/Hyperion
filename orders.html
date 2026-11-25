@@ -235,7 +235,10 @@
   <script src="assets/ports.js"></script>
   <script src="assets/terminals.js"></script>
   <script src="assets/ref.js"></script>
+  <script src="assets/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/store.js"></script>
+  <script src="assets/cloud.js"></script>
   <script src="assets/samples.js"></script>
   <script src="assets/routing.js"></script>
   <script src="assets/geo.js"></script>
@@ -489,7 +492,7 @@
         '<section><div class="fchips">' + [['all', 'All'], ['CMR', 'CMR'], ['CHECKLIST', 'Checklist'], ['PIC', 'Pictures']].map(function (c) {
           return '<button type="button" data-ftype="' + c[0] + '" class="' + (state.ftype === c[0] ? 'is-on' : '') + '">' + c[1] + ' ' + (cnt[c[0]] || 0) + '</button>'; }).join('') + '</div></section>' +
         '<section>' + (shown.length ? '<div class="fgrid">' + shown.map(function (f) {
-          return '<button type="button" class="fcard" data-file="' + esc(f.id) + '"><span class="im"><img src="' + f.data + '" alt="' + esc(f.type + ' ' + f.name) + '" loading="lazy"><span class="ftype ftype--' + f.type + '">' + f.type + '</span></span>' +
+          return '<button type="button" class="fcard" data-file="' + esc(f.id) + '"><span class="im"><img src="' + f.src + '" alt="' + esc(f.type + ' ' + f.name) + '" loading="lazy"><span class="ftype ftype--' + f.type + '">' + f.type + '</span></span>' +
             '<span class="cap"><span class="fn" style="display:block" title="' + esc(f.name) + '">' + esc(f.name) + '</span><span class="fm" style="display:block">' + esc(fileMeta(f)) + '</span></span></button>';
         }).join('') + '</div>' : '<div class="fempty">' + (all.length ? 'No files of this type.' : 'No files yet. Drivers add CMR, checklists and pictures in the driver app; you can also upload them here.') + '</div>') + '</section>';
     }
@@ -498,7 +501,7 @@
       if (!o || !state.lb) { el.innerHTML = ''; return; }
       var all = FILES.list(o), i = all.findIndex(function (f) { return f.id === state.lb; }), f = all[i];
       if (!f) { state.lb = null; el.innerHTML = ''; return; }
-      el.innerHTML = '<div class="lb" role="dialog" aria-label="' + esc(f.name) + '"><div class="im"><img src="' + f.data + '" alt="' + esc(f.type + ' ' + f.name) + '"></div>' +
+      el.innerHTML = '<div class="lb" role="dialog" aria-label="' + esc(f.name) + '"><div class="im"><img src="' + f.src + '" alt="' + esc(f.type + ' ' + f.name) + '"></div>' +
         (all.length > 1 ? '<button type="button" class="nav prev" id="lb-prev" aria-label="Previous file">‹</button><button type="button" class="nav next" id="lb-next" aria-label="Next file">›</button>' : '') +
         '<div class="bar2"><span class="ftype ftype--' + f.type + '">' + f.type + '</span><div class="meta"><b>' + esc(f.name) + '</b>' + esc(fileMeta(f)) + ' · ' + (i + 1) + ' of ' + all.length + '</div><div class="acts">' +
         (state.fdel ? '<span class="confirm">Delete this file?</span><button type="button" class="btn btn--danger" id="lb-del-yes">Delete</button><button type="button" class="btn" id="lb-del-no">Keep</button>'
@@ -617,9 +620,17 @@
     if (window.claude && typeof window.claude.use === 'function') window.claude.use('downloads').then(function (ns) { dlNs = ns; }, function () {});
     function download() {
       var f = FILES.list(JTMS.store.get(state.sel)).find(function (x) { return x.id === state.lb; }); if (!f) return;
+      if (!/^data:/.test(f.src)) {   // файл в облаке: сначала забрать его по ссылке
+        fetch(f.src).then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
+          .then(function (b) { saveBlob(f.name, b); }, function () { toast('Could not download the file. Check the connection and try again.'); });
+        return;
+      }
       var bin = atob(f.data.split(',')[1]), buf = new Uint8Array(bin.length);
       for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      var blob = new Blob([buf], { type: 'image/jpeg' });
+      saveBlob(f.name, new Blob([buf], { type: 'image/jpeg' }));
+    }
+    function saveBlob(name, blob) {
+      var f = { name: name };
       if (dlNs) {
         dlNs.save({ filename: f.name, data: blob }).then(function () { toast('Saved ' + f.name); }, function (e) {
           if (e && e.code === 'declined') return;
@@ -708,6 +719,7 @@
     render();
     if (state.flashId) { var r = document.querySelector('#tbl tr[data-id="' + state.flashId + '"]'); if (r) r.scrollIntoView({ block: 'center' }); }
     if (state.openId) select(state.openId);
+    JTMS.cloud.guard('office');   // общая база: вход, затем данные приходят сами
   })();
   </script>
 </body>
